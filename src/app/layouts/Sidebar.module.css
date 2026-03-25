@@ -1,0 +1,268 @@
+.sidebar {
+    background: var(--sb-bg);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    border-right: 1px solid var(--sb-bd);
+}
+
+/* ── Brand ── */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.25rem 1rem 1rem;
+    border-bottom: 1px solid var(--sb-bd);
+}
+
+.brandIcon {
+    width: 32px;
+    height: 32px;
+    background: var(--sb-tx-active);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--sb-bg);
+    flex-shrink: 0;
+}
+
+.brandName {
+    font-weight: 700;
+    font-size: 0.9375rem;
+    color: var(--sb-tx-active);
+}
+
+/* ── Nav ── */
+.nav {
+    flex: 1;
+    padding: 0.75rem 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    overflow-y: auto;
+}
+
+.navItem {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.575rem 0.875rem;
+    border-radius: 7px;
+    color: var(--sb-tx);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.12s, color 0.12s;
+}
+
+.navItem:hover  { background: var(--sb-hover); color: #aaaaaa; }
+.navItem.active { background: var(--sb-active); color: var(--sb-tx-active); }
+
+.navItem svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+/* ── Switcher ── */
+.switcher {
+    position: relative;
+    margin: 0.625rem;
+    border-top: 1px solid var(--sb-bd);
+    padding-top: 0.625rem;
+}
+
+.switcherHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.125rem 0.4rem;
+}
+
+.switcherLabel {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--sb-tx);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.addInstBtn {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    background: var(--sb-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sb-tx);
+    border: 1px solid var(--sb-bd);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.addInstBtn:hover { background: var(--sb-active); color: #aaaaaa; }
+.addInstBtn svg   { width: 11px; height: 11px; }
+
+.switcherBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.625rem;
+    border-radius: 7px;
+    background: var(--sb-hover);
+    cursor: pointer;
+    border: 1px solid var(--sb-bd);
+    transition: background 0.12s;
+}
+.switcherBtn:hover { background: var(--sb-active); }
+
+.instAvatar {
+    width: 30px;
+    height: 30px;
+    background: var(--sb-active);
+    border: 1px solid var(--sb-bd);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--sb-tx-active);
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+}
+
+.instMeta   { flex: 1; min-width: 0; text-align: left; }
+.instLabel  { display: block; font-size: 0.65rem; color: var(--sb-tx); line-height: 1; margin-bottom: 0.15rem; }
+.instName   {
+    display: block; font-size: 0.8rem; font-weight: 600;
+    color: var(--sb-tx-active); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+}
+
+.chevron {
+    width: 13px; height: 13px; color: var(--sb-tx);
+    flex-shrink: 0; transition: transform 0.2s;
+}
+.chevron.open { transform: rotate(180deg); }
+
+/* ── Dropdown ── */
+.dropdown {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0; right: 0;
+    background: var(--sb-hover);
+    border: 1px solid var(--sb-bd);
+    border-radius: 9px;
+    padding: 0.3rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 50;
+}
+
+.dropdownItem {
+    display: flex; align-items: center; gap: 0.55rem;
+    width: 100%; padding: 0.45rem 0.5rem;
+    border-radius: 6px; cursor: pointer;
+    color: var(--sb-tx); font-size: 0.8125rem; font-weight: 500;
+    transition: background 0.1s; background: none; border: none;
+}
+.dropdownItem:hover   { background: var(--sb-active); color: #aaaaaa; }
+.dropdownItem.selected { background: var(--sb-active); color: var(--sb-tx-active); }
+
+.dropdownItem .instAvatar { width: 24px; height: 24px; font-size: 0.5rem; }
+
+.checkIcon { margin-left: auto; width: 13px; height: 13px; color: var(--sb-tx-active); }
+
+/* ── Add institution modal (inside sidebar) ── */
+.instModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 1rem;
+    animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.instModalCard {
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.2s ease;
+    overflow: hidden;
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.instModalHeader {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.125rem 0.875rem;
+    border-bottom: 1px solid var(--bd);
+}
+.instModalTitle { font-size: 0.9375rem; font-weight: 700; color: var(--tx-1); }
+
+.instModalClose {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: transparent; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; color: var(--tx-3);
+    transition: background 0.12s;
+}
+.instModalClose:hover { background: var(--surface-3); color: var(--tx-1); }
+.instModalClose svg   { width: 14px; height: 14px; }
+
+.instModalBody {
+    padding: 1rem 1.125rem;
+    display: flex; flex-direction: column; gap: 0.75rem;
+}
+
+.instField { display: flex; flex-direction: column; gap: 0.25rem; }
+.instField label { font-size: 0.78rem; font-weight: 500; color: var(--tx-2); }
+.instField input {
+    padding: 0.5rem 0.7rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 7px;
+    font-size: 0.875rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.instField input:focus {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+}
+
+.instModalFooter {
+    display: flex; gap: 0.5rem; justify-content: flex-end;
+    padding: 0.75rem 1.125rem;
+    border-top: 1px solid var(--bd);
+    background: var(--surface-2);
+}
+
+.instCancelBtn {
+    padding: 0.475rem 0.875rem;
+    border: 1.5px solid var(--bd-2);
+    border-radius: 7px; font-size: 0.8125rem; font-weight: 500;
+    color: var(--tx-2); background: var(--surface); cursor: pointer;
+}
+.instCancelBtn:hover { border-color: var(--tx-3); }
+
+.instSaveBtn {
+    padding: 0.475rem 1rem;
+    background: var(--accent); color: var(--accent-fg);
+    border: none; border-radius: 7px;
+    font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+    transition: background 0.12s;
+}
+.instSaveBtn:hover    { background: var(--accent-hover); }
+.instSaveBtn:disabled { opacity: 0.4; cursor: not-allowed; }

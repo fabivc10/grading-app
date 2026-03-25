@@ -1,0 +1,72 @@
+.footerWrap {
+    position: fixed;
+    bottom: 0;
+    left: 248px; /* same as sidebar width */
+    right: 0;
+    z-index: 100;
+    overflow: hidden;
+    max-height: 200px;
+    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.footerWrap.collapsed { max-height: 30px; }
+.footerWrap.collapsed::after { content: ""; position: absolute; inset: 0; cursor: ns-resize; }
+
+.footer {
+    background: var(--sb-bg);
+    color: var(--sb-tx);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    border-top: 1px solid var(--sb-bd);
+}
+
+.inner {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1.2fr;
+    gap: 2rem;
+    padding: 1.125rem 2rem 0.875rem;
+}
+
+/* Col 1 */
+.brand { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
+.brandIcon {
+    width: 22px; height: 22px; background: var(--sb-tx-active); border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.7rem; color: var(--sb-bg); flex-shrink: 0;
+}
+.brandName { font-weight: 600; color: var(--sb-tx-active); font-size: 0.8125rem; }
+.tagline   { color: var(--sb-bd); font-size: 0.75rem; }
+
+/* Col 2 */
+.colTitle {
+    font-weight: 600; color: var(--sb-tx); margin-bottom: 0.5rem;
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em;
+}
+.socialLinks { display: flex; flex-direction: column; gap: 0.3rem; }
+.socialLink  { display: flex; align-items: center; gap: 0.4rem; color: var(--sb-tx); text-decoration: none; font-size: 0.78rem; transition: color 0.12s; }
+.socialLink:hover { color: var(--sb-tx-active); }
+.socialLink svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* Col 3 */
+.contactList { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.5rem; }
+.contactItem { display: flex; align-items: center; gap: 0.4rem; color: var(--sb-tx); font-size: 0.78rem; }
+.contactItem svg { width: 12px; height: 12px; flex-shrink: 0; }
+.devBy { font-size: 0.72rem; color: var(--sb-bd); }
+.devBy span { color: var(--sb-tx); font-weight: 500; }
+
+/* Bottom bar */
+.bottom {
+    border-top: 1px solid var(--sb-bd);
+    padding: 0.4rem 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.7rem; color: var(--sb-bd);
+    background: var(--sb-bg);
+}
+
+.expandHint {
+    display: flex; align-items: center; gap: 0.3rem;
+    font-size: 0.68rem; color: var(--sb-tx);
+    cursor: pointer; background: none; border: none; transition: color 0.12s;
+}
+.expandHint:hover { color: var(--sb-tx-active); }
+.expandHint svg { width: 11px; height: 11px; transition: transform 0.3s; }
+.expandHint.isCollapsed svg { transform: rotate(180deg); }

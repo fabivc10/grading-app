@@ -1,0 +1,161 @@
+.topbar {
+    height: 54px;
+    background: var(--tb-bg);
+    border-bottom: 1px solid var(--tb-bd);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    flex-shrink: 0;
+}
+
+.title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--tx-1);
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+/* ── Icon button ── */
+.iconBtn {
+    position: relative;
+    width: 36px; height: 36px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--tx-3); cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    border: none; background: transparent;
+}
+.iconBtn:hover { background: var(--surface-3); color: var(--tx-1); }
+.iconBtn svg   { width: 18px; height: 18px; }
+
+.badge {
+    position: absolute; top: 7px; right: 7px;
+    width: 7px; height: 7px;
+    background: var(--tx-1); border-radius: 50%;
+    border: 1.5px solid var(--tb-bg);
+}
+
+/* ── Panels ── */
+.panel {
+    position: absolute; top: 54px; right: 1rem;
+    width: 320px;
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 11px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.panelHeader {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.8rem 1rem 0.7rem;
+    border-bottom: 1px solid var(--bd);
+}
+.panelTitle { font-weight: 600; font-size: 0.875rem; color: var(--tx-1); }
+
+.markRead {
+    font-size: 0.78rem; color: var(--tx-2);
+    cursor: pointer; background: none; border: none;
+    transition: color 0.12s;
+}
+.markRead:hover { color: var(--tx-1); }
+
+.notifList { max-height: 300px; overflow-y: auto; }
+
+.notifItem {
+    display: flex; gap: 0.7rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--surface-2);
+    transition: background 0.1s;
+}
+.notifItem:hover  { background: var(--surface-2); }
+.notifItem.unread { background: var(--surface-3); }
+
+.notifDot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--tx-1); flex-shrink: 0; margin-top: 5px;
+}
+
+.notifContent p    { font-size: 0.8125rem; color: var(--tx-1); line-height: 1.4; }
+.notifContent time { font-size: 0.72rem; color: var(--tx-3); }
+
+.emptyNotif { padding: 1.75rem 1rem; text-align: center; color: var(--tx-3); font-size: 0.8125rem; }
+
+/* ── Divider ── */
+.divider { width: 1px; height: 20px; background: var(--bd); margin: 0 0.4rem; }
+
+/* ── Profile ── */
+.profileBtn {
+    display: flex; align-items: center; gap: 0.45rem;
+    padding: 0.2rem 0.45rem 0.2rem 0.2rem;
+    border-radius: 7px; cursor: pointer;
+    border: none; background: transparent; color: var(--tx-2);
+    transition: background 0.12s;
+}
+.profileBtn:hover { background: var(--surface-3); color: var(--tx-1); }
+
+.avatar {
+    width: 30px; height: 30px;
+    background: var(--accent); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700; color: var(--accent-fg);
+    flex-shrink: 0;
+}
+
+.profileName {
+    font-size: 0.8125rem; font-weight: 500;
+    max-width: 120px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    color: var(--tx-1);
+}
+
+.chevron { width: 13px; height: 13px; color: var(--tx-3); transition: transform 0.2s; }
+.chevron.open { transform: rotate(180deg); }
+
+/* ── Profile panel ── */
+.profilePanel {
+    position: absolute; top: 54px; right: 1rem;
+    width: 188px;
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    overflow: hidden;
+    padding: 0.3rem;
+}
+
+.profileItem {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.5rem 0.7rem; border-radius: 6px;
+    width: 100%; font-size: 0.8125rem; color: var(--tx-1);
+    cursor: pointer; border: none; background: transparent;
+    transition: background 0.1s; text-align: left;
+}
+.profileItem:hover { background: var(--surface-3); }
+.profileItem svg   { width: 15px; height: 15px; color: var(--tx-3); }
+
+.profileItemDanger         { color: var(--danger); }
+.profileItemDanger svg     { color: var(--danger); }
+.profileItemDanger:hover   { background: var(--danger-bg); }
+
+.profileDivider { height: 1px; background: var(--bd); margin: 0.25rem 0; }
+
+/* ── Theme toggle ── */
+.themeBtn {
+    width: 36px; height: 36px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--tx-3); cursor: pointer;
+    border: none; background: transparent;
+    transition: background 0.12s, color 0.12s;
+}
+.themeBtn:hover { background: var(--surface-3); color: var(--tx-1); }
+.themeBtn svg   { width: 17px; height: 17px; }

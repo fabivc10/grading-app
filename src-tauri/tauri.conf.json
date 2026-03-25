@@ -12,13 +12,17 @@
   "app": {
     "windows": [
       {
-        "title": "grading-app",
-        "width": 800,
-        "height": 600
+        "maximized": true,
+        "title": "grading-app"
       }
     ],
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "sql": {
+      "preloadConnections": ["sqlite:grading.db"]
     }
   },
   "bundle": {
