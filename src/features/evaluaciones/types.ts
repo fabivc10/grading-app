@@ -7,12 +7,14 @@ export type TemaItem = {
     descripcion: string;
     valor: number;       // max pts this punto is worth
     nota: number;        // earned score (0–valor)
+    notaDescripcion: string; // reason/comment for the earned grade
 };
 
 export type EvalEntry = {
     id: string;
     nombre: string;
     pct: number;         // max pts allocated from category weight
+    semestre: 's1' | 's2';
     items: TemaItem[];
 };
 

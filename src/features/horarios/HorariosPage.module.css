@@ -53,23 +53,6 @@
     display: flex; flex-direction: column; gap: 0.3rem;
     flex-shrink: 0;
 }
-.searchWrap { position: relative; display: flex; align-items: center; }
-.searchIcon {
-    position: absolute; left: 0.4rem; width: 13px; height: 13px;
-    color: var(--tx-3); pointer-events: none;
-}
-.searchInput {
-    width: 100%; padding: 0.3rem 1.4rem 0.3rem 1.6rem;
-    background: var(--input-bg); border: 1px solid var(--input-bd);
-    border-radius: 6px; font-size: 0.75rem; color: var(--tx-1); outline: none;
-}
-.searchInput:focus { border-color: var(--input-focus); }
-.clearSearch {
-    position: absolute; right: 0.4rem; background: none; border: none;
-    color: var(--tx-3); cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0;
-}
-.clearSearch:hover { color: var(--tx-1); }
-
 .filterRow { display: flex; gap: 0.3rem; }
 .filterSelect {
     flex: 1; padding: 0.28rem 0.3rem;
@@ -327,45 +310,16 @@
 .dropHintBad { background: var(--danger-bg);     border-color: var(--danger-bd); }
 
 /* ══════════════════════════════════════
-   MODAL (break form)
+   MODAL (break form helpers)
 ══════════════════════════════════════ */
-.overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.45);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 1000;
-}
-.modal {
-    background: var(--surface); border: 1px solid var(--bd);
-    border-radius: 12px; width: 360px; display: flex; flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-}
-.modalHeader {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.125rem 0.75rem; border-bottom: 1px solid var(--bd);
-}
-.modalTitle { font-size: 0.9rem; font-weight: 700; color: var(--tx-1); }
-.closeBtn {
-    width: 26px; height: 26px; border-radius: 6px; border: none;
-    background: transparent; color: var(--tx-3); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; transition: background 0.1s;
-}
-.closeBtn svg { width: 15px; height: 15px; }
-.closeBtn:hover { background: var(--surface-2); color: var(--tx-1); }
-.modalBody   { padding: 1rem 1.125rem; display: flex; flex-direction: column; gap: 0.875rem; }
-.modalFooter {
-    display: flex; justify-content: flex-end; gap: 0.5rem;
-    padding: 0.75rem 1.125rem 1rem; border-top: 1px solid var(--bd);
-}
-.field { display: flex; flex-direction: column; gap: 0.3rem; }
-.field label { font-size: 0.75rem; font-weight: 600; color: var(--tx-2); }
-.field input, .field select {
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.formInput {
     padding: 0.4rem 0.6rem;
     background: var(--input-bg); border: 1px solid var(--input-bd);
-    border-radius: 7px; font-size: 0.82rem; color: var(--tx-1); outline: none;
+    border-radius: 7px; font-size: 0.82rem; color: var(--tx-1); outline: none; width: 100%;
 }
-.field input:focus, .field select:focus { border-color: var(--input-focus); }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.formInput:focus { border-color: var(--input-focus); }
+.formInput::placeholder { color: var(--tx-3); }
 .dayToggleRow { display: flex; gap: 0.3rem; }
 .dayToggle {
     flex: 1; padding: 0.3rem 0; border-radius: 6px;

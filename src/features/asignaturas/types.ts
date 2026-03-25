@@ -22,8 +22,8 @@ export type Asignatura = {
     id: string;
     año: number;
     nombre: string;
-    grupo: string;
-    seccion: string;
+    grupo: number;
+    seccion: number;
     lecciones: number;
     semestres: [Semestre, Semestre];
 };
@@ -32,7 +32,7 @@ export type Asignatura = {
 export type AsignaturaFormData = {
     año: number;
     nombre: string;
-    grupo: string;
-    seccion: string;
+    grupo: number;
+    seccion: number;
     lecciones: number;
 };

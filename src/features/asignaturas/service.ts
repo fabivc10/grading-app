@@ -9,8 +9,8 @@ function toModel(dto: AsignaturaDTO, semDtos: SemestreDTO[]): Asignatura {
         id:        dto.id,
         año:       dto.año,
         nombre:    dto.nombre,
-        grupo:     dto.grupo,
-        seccion:   dto.seccion ?? "",
+        grupo:     parseInt(dto.grupo, 10) || 1,
+        seccion:   parseInt(dto.seccion ?? '0', 10) || 1,
         lecciones: dto.lecciones,
         semestres: [
             sems[0] ? { id: sems[0].id, nombre: sems[0].nombre } : { id: genId(), nombre: "Semestre I" },

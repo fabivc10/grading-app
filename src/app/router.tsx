@@ -8,6 +8,8 @@ import { EstudiantesPage } from "../features/estudiantes/pages/EstudiantesPage";
 import { EvaluacionesPage } from "../features/evaluaciones/pages/EvaluacionesPage";
 import { HorariosPage } from "../features/horarios/pages/HorariosPage";
 import { AsistenciaPage } from "../features/asistencia/pages/AsistenciaPage";
+import { ReportesPage } from "../features/reportes/pages/ReportesPage";
+import { ConfiguracionPage } from "../features/configuracion/pages/ConfiguracionPage";
 
 export const router = createBrowserRouter([
     { path: "/",      element: <LandingPage /> },
@@ -21,10 +23,11 @@ export const router = createBrowserRouter([
                 children: [
                     { index: true,              element: <AsignaturasPage /> },
                     { path: "estudiantes",      element: <EstudiantesPage /> },
-                    { path: "reportes",         element: <h1>Reportes</h1> },
+                    { path: "reportes",         element: <ReportesPage /> },
                     { path: "horarios",         element: <HorariosPage /> },
                     { path: "evaluaciones",     element: <EvaluacionesPage /> },
                     { path: "asistencia",       element: <AsistenciaPage /> },
+                    { path: "configuracion",    element: <ConfiguracionPage /> },
                 ],
             },
         ],

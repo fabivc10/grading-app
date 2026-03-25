@@ -1,0 +1,80 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 1rem;
+    animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.125rem;
+    border-bottom: 1px solid var(--bd);
+    flex-shrink: 0;
+}
+.title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--tx-1);
+}
+
+.closeBtn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tx-3);
+    transition: background 0.12s;
+}
+.closeBtn:hover { background: var(--surface-3); color: var(--tx-1); }
+.closeBtn svg   { width: 15px; height: 15px; }
+
+.body {
+    padding: 1rem 1.125rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.footer {
+    padding: 0.75rem 1.125rem;
+    border-top: 1px solid var(--bd);
+    background: var(--surface-2);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}

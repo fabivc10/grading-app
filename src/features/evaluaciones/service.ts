@@ -3,8 +3,8 @@ import { genId } from "../../shared/lib/genId";
 import type { StudentEval, StudentCotidiano, TemaItem, EvalEntry, SemanaAsist, EvalCategory } from "./types";
 
 type EvalRow   = { id: string; institution_id: number; asignatura_id: string; nombre: string; estudiante_id: string | null };
-type EntryRow  = { id: string; evaluacion_id: string; category: string; nombre: string; pct: number };
-type TemaRow   = { id: string; entry_id: string; tema: string; nombre: string; descripcion: string; valor: number; nota: number };
+type EntryRow  = { id: string; evaluacion_id: string; category: string; nombre: string; pct: number; semestre: string };
+type TemaRow   = { id: string; entry_id: string; tema: string; nombre: string; descripcion: string; valor: number; nota: number; nota_descripcion: string };
 type AsistRow  = { id: string; evaluacion_id: string; semestre: string; semana: number; dias: string };
 type EnrollRow = { estudiante_id: string; nombre_completo: string; asignatura_id: string };
 type CotRow    = { estudiante_id: string; conducta_pct: number };
@@ -71,9 +71,11 @@ export async function fetchEvaluaciones(institutionId: number): Promise<StudentE
         const toEntries = (cat: EvalCategory): EvalEntry[] =>
             myEntries.filter((e) => e.category === cat).map((e) => ({
                 id: e.id, nombre: e.nombre, pct: e.pct,
+                semestre: ((e.semestre as string) === 's2' ? 's2' : 's1') as 's1' | 's2',
                 items: temas.filter((t) => t.entry_id === e.id).map((t) => ({
                     id: t.id, tema: t.tema, nombre: t.nombre,
                     descripcion: t.descripcion, valor: t.valor, nota: t.nota ?? 0,
+                    notaDescripcion: t.nota_descripcion ?? "",
                 })),
             }));
 
@@ -125,13 +127,13 @@ export async function updateEvaluacion(id: string, patch: Partial<StudentEval>):
             if (!entries) continue;
             for (const entry of entries) {
                 await db.execute(
-                    "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct) VALUES (?,?,?,?,?)",
-                    [entry.id, id, cat, entry.nombre, entry.pct]
+                    "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre) VALUES (?,?,?,?,?,?)",
+                    [entry.id, id, cat, entry.nombre, entry.pct, entry.semestre ?? 's1']
                 );
                 for (const item of entry.items) {
                     await db.execute(
-                        "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota) VALUES (?,?,?,?,?,?,?)",
-                        [item.id, entry.id, item.tema, item.nombre, item.descripcion, item.valor, item.nota]
+                        "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota, nota_descripcion) VALUES (?,?,?,?,?,?,?,?)",
+                        [item.id, entry.id, item.tema, item.nombre, item.descripcion, item.valor, item.nota, item.notaDescripcion ?? ""]
                     );
                 }
             }
@@ -156,7 +158,8 @@ export async function addEvalEntryBatch(
     recordIds: string[],
     category: EvalCategory,
     nombre: string,
-    items: TemaItem[]
+    items: TemaItem[],
+    semestre: 's1' | 's2'
 ): Promise<{ recordId: string; entryId: string; items: TemaItem[] }[]> {
     const db = await getDb();
     const pct = items.reduce((s, i) => s + i.valor, 0);
@@ -164,17 +167,17 @@ export async function addEvalEntryBatch(
     for (const recordId of recordIds) {
         const entryId = genId();
         await db.execute(
-            "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct) VALUES (?,?,?,?,?)",
-            [entryId, recordId, category, nombre, pct]
+            "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre) VALUES (?,?,?,?,?,?)",
+            [entryId, recordId, category, nombre, pct, semestre]
         );
         const savedItems: TemaItem[] = [];
         for (const item of items) {
             const itemId = genId();
             await db.execute(
-                "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota) VALUES (?,?,?,?,?,?,?)",
-                [itemId, entryId, item.tema, item.nombre, item.descripcion, item.valor, 0]
+                "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota, nota_descripcion) VALUES (?,?,?,?,?,?,?,?)",
+                [itemId, entryId, item.tema, item.nombre, item.descripcion, item.valor, item.valor, ""]
             );
-            savedItems.push({ ...item, id: itemId, nota: 0 });
+            savedItems.push({ ...item, id: itemId, nota: item.valor, notaDescripcion: "" });
         }
         result.push({ recordId, entryId, items: savedItems });
     }

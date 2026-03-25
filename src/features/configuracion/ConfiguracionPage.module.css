@@ -1,0 +1,275 @@
+/* ── Page ── */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    height: 100%;
+    overflow: hidden;
+}
+
+.pageHeader { flex-shrink: 0; }
+.pageTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--tx-1);
+    margin: 0 0 0.2rem;
+}
+.pageSubtitle {
+    font-size: var(--fs-sm);
+    color: var(--tx-3);
+    margin: 0;
+}
+
+/* ── Sections list ── */
+.sections {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    background: var(--surface);
+    overflow-y: auto;
+}
+
+/* ── Section ── */
+.section {
+    border-bottom: 1px solid var(--bd);
+}
+.section:last-child { border-bottom: none; }
+
+.sectionHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s;
+}
+.sectionHead:hover { background: var(--surface-2); }
+
+.sectionHeadText {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.sectionTitle {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--tx-1);
+}
+.sectionDesc {
+    font-size: 0.775rem;
+    color: var(--tx-3);
+    line-height: 1.4;
+}
+
+.chevron {
+    flex-shrink: 0;
+    color: var(--tx-3);
+    transition: transform 0.2s ease;
+}
+.chevronOpen { transform: rotate(180deg); }
+
+/* ── Section body ── */
+.sectionBody {
+    border-top: 1px solid var(--bd);
+    background: var(--surface);
+}
+
+/* ── Setting row ── */
+.settingRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--bd);
+}
+.settingRow:last-of-type { border-bottom: none; }
+
+.settingLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+}
+.settingLabel > span:first-child {
+    font-size: 0.825rem;
+    font-weight: 500;
+    color: var(--tx-1);
+}
+.settingHint {
+    font-size: 0.75rem;
+    color: var(--tx-3);
+}
+
+.settingControl {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+/* ── Number input ── */
+.numInputWrap {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.numInput {
+    width: 72px;
+    padding: 0.38rem 0.55rem;
+    border: 1px solid var(--input-bd);
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    text-align: right;
+    transition: border-color 0.12s, box-shadow 0.12s;
+    color-scheme: light dark;
+}
+.numInput:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.numInput:disabled { opacity: 0.38; cursor: not-allowed; }
+.numUnit {
+    font-size: 0.775rem;
+    color: var(--tx-3);
+    min-width: 24px;
+}
+
+/* ── Sum row ── */
+.sumRow {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--bd);
+}
+.sumOk  { color: var(--tx-3); }
+.sumWarn { color: var(--danger); }
+
+/* ── Saved badge ── */
+.savedBadge {
+    font-size: 0.75rem;
+    color: var(--tx-3);
+}
+
+/* ── Saved row ── */
+.savedRow {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.6rem 1.25rem;
+    min-height: 2.25rem;
+}
+
+/* ── Toggle ── */
+.toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggleTrack {
+    width: 38px;
+    height: 22px;
+    background: var(--surface-3, #ccc);
+    border-radius: 999px;
+    position: relative;
+    transition: background 0.2s;
+    border: 1px solid transparent;
+}
+.toggle input:checked ~ .toggleTrack { background: var(--accent); }
+.toggleThumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle input:checked ~ .toggleTrack .toggleThumb { transform: translateX(16px); }
+
+/* ── Alert control ── */
+.alertControl {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* ── Priority select ── */
+.prioritySelect {
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--input-bd);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--tx-2);
+    background: var(--input-bg);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.12s;
+    color-scheme: light dark;
+}
+.prioritySelect:focus { border-color: var(--accent); }
+.prioritySelect:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* ── Semestres ── */
+.semGroup {
+    border-bottom: 1px solid var(--bd);
+}
+.semGroup:last-of-type { border-bottom: none; }
+.semGroupLabel {
+    padding: 0.55rem 1.25rem 0.3rem;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--tx-3);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--bd);
+}
+.dateWrap {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+.dateWrap select {
+    padding: 0.38rem 0.55rem;
+    border: 1px solid var(--input-bd);
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    transition: border-color 0.12s;
+    color-scheme: light dark;
+    min-width: 110px;
+}
+.dateWrap select:focus { border-color: var(--accent); }
+.dayInput {
+    width: 68px !important;
+    padding: 0.38rem 0.55rem;
+    border: 1px solid var(--input-bd);
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    transition: border-color 0.12s;
+    color-scheme: light dark;
+    text-align: center;
+}
+.dayInput:focus { border-color: var(--accent); }

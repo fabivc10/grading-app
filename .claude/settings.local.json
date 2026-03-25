@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(git -C /c/Users/Fabian/Documents/GitHub/grading-app branch -a)",
+      "Bash(git -C /c/Users/Fabian/Documents/GitHub/grading-app log --oneline -5 master)",
+      "Bash(git -C /c/Users/Fabian/Documents/GitHub/grading-app log --oneline -5 main)"
+    ]
+  }
+}

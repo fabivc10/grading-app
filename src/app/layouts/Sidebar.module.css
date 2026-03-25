@@ -194,7 +194,7 @@
     border: 1px solid var(--bd);
     border-radius: 14px;
     width: 100%;
-    max-width: 360px;
+    max-width: 420px;
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.2s ease;
     overflow: hidden;
@@ -237,9 +237,23 @@
     outline: none;
     transition: border-color 0.15s;
 }
-.instField input:focus {
+.instField input:focus,
+.instField select:focus {
     border-color: var(--input-focus);
     box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+}
+
+.instField select {
+    padding: 0.5rem 0.7rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 7px;
+    font-size: 0.875rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    transition: border-color 0.15s;
+    color-scheme: light dark;
+    cursor: pointer;
 }
 
 .instModalFooter {

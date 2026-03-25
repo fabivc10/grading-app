@@ -3,7 +3,11 @@ import { useEstudiantesStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore } from "../../institution/store";
 import type { Adecuacion, AsigRef, Estudiante, EstudianteFormData } from "../types";
-import { PlusIcon, SearchIcon, EditIcon, TrashIcon, CloseIcon, EmptyIcon } from "../../../shared/ui/icons";
+import { PlusIcon, EditIcon, TrashIcon } from "../../../shared/ui/icons";
+import { SearchInput } from "../../../shared/ui/SearchInput";
+import { Modal } from "../../../shared/ui/Modal";
+import { EmptyState } from "../../../shared/ui/EmptyState";
+import { FormField } from "../../../shared/ui/FormField";
 import styles from "../EstudiantesPage.module.css";
 
 // ─── Adecuación config ────────────────────────────────────────────────────────
@@ -67,83 +71,69 @@ function EstudianteModal({
         onSave(form, initial.id);
     };
 
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button type="submit" form="estudiante-form" className={styles.saveBtn} disabled={!valid}>
+                {isEdit ? "Guardar cambios" : "Crear estudiante"}
+            </button>
+        </>
+    );
+
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>
-                        {isEdit ? "Editar estudiante" : "Nuevo estudiante"}
-                    </span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
+        <Modal open onClose={onClose} title={isEdit ? "Editar estudiante" : "Nuevo estudiante"} footer={footer}>
+            <form id="estudiante-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+                <FormField label="Nombre completo" required>
+                    <input className={styles.formInput} type="text" placeholder="Ej: Ana García López" value={form.nombreCompleto} onChange={setField("nombreCompleto")} autoFocus required />
+                </FormField>
+
+                <div className={styles.row2}>
+                    <FormField label="Cédula" required>
+                        <input className={styles.formInput} type="text" placeholder="1-2345-6789" value={form.cedula} onChange={setField("cedula")} required />
+                    </FormField>
+                    <FormField label="Teléfono">
+                        <input className={styles.formInput} type="tel" placeholder="+503 7000-0000" value={form.telefono} onChange={setField("telefono")} />
+                    </FormField>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: "contents" }}>
-                    <div className={styles.modalBody}>
-                        <div className={styles.field}>
-                            <label>Nombre completo</label>
-                            <input type="text" placeholder="Ej: Ana García López" value={form.nombreCompleto} onChange={setField("nombreCompleto")} autoFocus required />
-                        </div>
+                <div className={styles.row2}>
+                    <FormField label="Edad" required>
+                        <input className={styles.formInput} type="number" min={4} max={30} value={form.edad} onChange={setField("edad")} required />
+                    </FormField>
+                    <FormField label="Adecuación curricular">
+                        <select className={styles.formInput} value={form.adecuacion} onChange={setField("adecuacion")}>
+                            <option value="no_tiene">No tiene</option>
+                            <option value="acceso">Acceso</option>
+                            <option value="significativa">Significativa</option>
+                            <option value="no_significativa">No significativa</option>
+                        </select>
+                    </FormField>
+                </div>
 
-                        <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Cédula</label>
-                                <input type="text" placeholder="1-2345-6789" value={form.cedula} onChange={setField("cedula")} required />
-                            </div>
-                            <div className={styles.field}>
-                                <label>Teléfono</label>
-                                <input type="tel" placeholder="+503 7000-0000" value={form.telefono} onChange={setField("telefono")} />
-                            </div>
-                        </div>
-
-                        <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Edad</label>
-                                <input type="number" min={4} max={30} value={form.edad} onChange={setField("edad")} required />
-                            </div>
-                            <div className={styles.field}>
-                                <label>Adecuación curricular</label>
-                                <select value={form.adecuacion} onChange={setField("adecuacion")}>
-                                    <option value="no_tiene">No tiene</option>
-                                    <option value="acceso">Acceso</option>
-                                    <option value="significativa">Significativa</option>
-                                    <option value="no_significativa">No significativa</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <p className={styles.sectionLabel}>Asignaturas asociadas</p>
-                            <div className={styles.asigList}>
-                                {asigCatalogue.length === 0 ? (
-                                    <span className={styles.emptyAsig}>No hay asignaturas disponibles</span>
-                                ) : (
-                                    asigCatalogue.map((asig) => (
-                                        <label key={asig.id} className={styles.asigOption}>
-                                            <input
-                                                type="checkbox"
-                                                checked={form.asignaturas.some((a) => a.id === asig.id)}
-                                                onChange={() => toggleAsig(asig)}
-                                            />
-                                            <span className={styles.asigOptionLabel}>
-                                                <strong>{asig.nombre}</strong>
-                                                <span>· {asig.grupo} · {asig.año}</span>
-                                            </span>
-                                        </label>
-                                    ))
-                                )}
-                            </div>
-                        </div>
+                <div>
+                    <p className={styles.sectionLabel}>Asignaturas asociadas</p>
+                    <div className={styles.asigList}>
+                        {asigCatalogue.length === 0 ? (
+                            <span className={styles.emptyAsig}>No hay asignaturas disponibles</span>
+                        ) : (
+                            asigCatalogue.map((asig) => (
+                                <label key={asig.id} className={styles.asigOption}>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.asignaturas.some((a) => a.id === asig.id)}
+                                        onChange={() => toggleAsig(asig)}
+                                    />
+                                    <span className={styles.asigOptionLabel}>
+                                        <strong>{asig.nombre}</strong>
+                                        <span>· {asig.grupo} · {asig.año}</span>
+                                    </span>
+                                </label>
+                            ))
+                        )}
                     </div>
-
-                    <div className={styles.modalFooter}>
-                        <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.saveBtn} disabled={!valid}>
-                            {isEdit ? "Guardar cambios" : "Crear estudiante"}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                </div>
+            </form>
+        </Modal>
     );
 }
 
@@ -254,17 +244,7 @@ export function EstudiantesPage() {
 
             {/* ── Toolbar ── */}
             <div className={styles.toolbar}>
-                <div className={styles.searchWrap}>
-                    <span className={styles.searchIcon}><SearchIcon /></span>
-                    <input
-                        className={styles.searchInput}
-                        type="text"
-                        placeholder="Buscar por nombre, cédula o teléfono..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    {search && <button className={styles.clearSearch} onClick={() => setSearch("")}>×</button>}
-                </div>
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre, cédula o teléfono..." width={280} />
 
                 <select
                     className={styles.filterSelect}
@@ -304,10 +284,9 @@ export function EstudiantesPage() {
                             {filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan={7}>
-                                        <div className={styles.empty}>
-                                            <EmptyIcon />
-                                            <p>{estudiantes.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}</p>
-                                        </div>
+                                        <EmptyState
+                                            title={estudiantes.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}
+                                        />
                                     </td>
                                 </tr>
                             ) : (

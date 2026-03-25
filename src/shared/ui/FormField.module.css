@@ -1,0 +1,17 @@
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--tx-2);
+}
+
+.required {
+    color: var(--danger);
+    margin-left: 0.2rem;
+}
+

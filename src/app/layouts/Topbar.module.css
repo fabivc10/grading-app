@@ -35,58 +35,115 @@
 .iconBtn svg   { width: 18px; height: 18px; }
 
 .badge {
-    position: absolute; top: 7px; right: 7px;
-    width: 7px; height: 7px;
-    background: var(--tx-1); border-radius: 50%;
+    position: absolute; top: 4px; right: 4px;
+    min-width: 16px; height: 16px;
+    padding: 0 3px;
+    background: #ef4444;
+    color: #fff;
+    border-radius: 999px;
     border: 1.5px solid var(--tb-bg);
+    font-size: 0.6rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+    pointer-events: none;
 }
 
 /* ── Panels ── */
 .panel {
-    position: absolute; top: 54px; right: 1rem;
-    width: 320px;
+    position: absolute; top: calc(100% + 6px); right: 0;
+    width: 340px;
     background: var(--surface);
     border: 1px solid var(--bd);
     border-radius: 11px;
     box-shadow: var(--shadow-lg);
-    z-index: 100;
+    z-index: 200;
     overflow: hidden;
 }
 
 .panelHeader {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0.8rem 1rem 0.7rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--bd);
+    gap: 0.5rem;
 }
-.panelTitle { font-weight: 600; font-size: 0.875rem; color: var(--tx-1); }
+.panelTitle { font-weight: 600; font-size: 0.875rem; color: var(--tx-1); flex: 1; }
 
-.markRead {
-    font-size: 0.78rem; color: var(--tx-2);
-    cursor: pointer; background: none; border: none;
-    transition: color 0.12s;
+.panelActions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
+.panelAction {
+    font-size: 0.75rem; color: var(--tx-3);
+    cursor: pointer; background: none; border: none; padding: 0;
+    transition: color 0.12s; white-space: nowrap;
 }
-.markRead:hover { color: var(--tx-1); }
+.panelAction:hover { color: var(--tx-1); }
+.panelAction + .panelAction::before {
+    content: "·";
+    margin-right: 0.5rem;
+    pointer-events: none;
+}
 
-.notifList { max-height: 300px; overflow-y: auto; }
+/* ── Notification list ── */
+.notifList { max-height: 360px; overflow-y: auto; }
 
 .notifItem {
-    display: flex; gap: 0.7rem;
-    padding: 0.7rem 1rem;
-    border-bottom: 1px solid var(--surface-2);
+    display: flex; align-items: stretch; gap: 0;
+    border-bottom: 1px solid var(--bd);
     transition: background 0.1s;
+    position: relative;
 }
-.notifItem:hover  { background: var(--surface-2); }
-.notifItem.unread { background: var(--surface-3); }
+.notifItem:last-child { border-bottom: none; }
+.notifItem:hover { background: var(--surface-2); }
+.notifItem.unread { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
 
-.notifDot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--tx-1); flex-shrink: 0; margin-top: 5px;
+.notifPriorityBar {
+    width: 3px;
+    flex-shrink: 0;
+    border-radius: 0;
+    align-self: stretch;
 }
 
-.notifContent p    { font-size: 0.8125rem; color: var(--tx-1); line-height: 1.4; }
-.notifContent time { font-size: 0.72rem; color: var(--tx-3); }
+.notifBody {
+    flex: 1;
+    padding: 0.65rem 0.75rem;
+    min-width: 0;
+}
 
-.emptyNotif { padding: 1.75rem 1rem; text-align: center; color: var(--tx-3); font-size: 0.8125rem; }
+.notifMeta {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-bottom: 0.2rem;
+}
+.notifPriorityLabel {
+    font-size: 0.68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+.notifTime { font-size: 0.7rem; color: var(--tx-3); }
+.notifText { font-size: 0.8rem; color: var(--tx-1); line-height: 1.45; }
+
+/* ── Per-item action buttons ── */
+.notifItemActions {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 0.1rem;
+    padding: 0.5rem 0.5rem 0.5rem 0;
+    opacity: 0;
+    transition: opacity 0.12s;
+    flex-shrink: 0;
+}
+.notifItem:hover .notifItemActions { opacity: 1; }
+
+.notifBtn {
+    width: 26px; height: 26px;
+    border: none; background: transparent;
+    border-radius: 5px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--tx-3);
+    transition: background 0.1s, color 0.1s;
+}
+.notifBtn:hover { background: var(--surface-3); color: var(--tx-1); }
+.notifBtn svg { width: 13px; height: 13px; }
+.notifBtnDanger:hover { background: var(--danger-bg); color: var(--danger); }
+
+.emptyNotif { padding: 2rem 1rem; text-align: center; color: var(--tx-3); font-size: 0.8125rem; }
 
 /* ── Divider ── */
 .divider { width: 1px; height: 20px; background: var(--bd); margin: 0 0.4rem; }

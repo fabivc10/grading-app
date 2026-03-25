@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { useInstitutionStore, selectCurrentInstitution } from "../../features/institution/store";
-import { BookIcon, UsersIcon, BarChartIcon, CalendarIcon, ClipboardIcon, PlusIcon, CheckIcon, CloseIcon, BellIcon } from "../../shared/ui/icons";
+import { BookIcon, UsersIcon, BarChartIcon, CalendarIcon, ClipboardIcon, PlusIcon, CheckIcon, CloseIcon, BellIcon, SettingsIcon } from "../../shared/ui/icons";
 import styles from "./Sidebar.module.css";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
@@ -11,23 +11,60 @@ const NAV = [
     { to: "/app/evaluaciones", label: "Evaluaciones", Icon: ClipboardIcon, end: false },
     { to: "/app/asistencia",   label: "Asistencia",   Icon: BellIcon,      end: false },
     { to: "/app/horarios",     label: "Horarios",     Icon: CalendarIcon,  end: false },
-    { to: "/app/reportes",     label: "Reportes",     Icon: BarChartIcon,  end: false },
+    { to: "/app/reportes",       label: "Reportes",       Icon: BarChartIcon,  end: false },
+    { to: "/app/configuracion",  label: "Configuración",  Icon: SettingsIcon,  end: false },
+];
+
+// ─── CR Education constants ───────────────────────────────────────────────────
+const TIPOS_INSTITUCION = [
+    "Jardín de Niños",
+    "Escuela Primaria",
+    "Colegio Académico Diurno",
+    "Colegio Académico Nocturno",
+    "Liceo",
+    "Colegio Técnico Profesional (CTP)",
+    "CINDEA",
+    "IPEC",
+    "Telesecundaria",
+    "Centro de Educación Especial",
+];
+
+const DIRECCIONES_REGIONALES = [
+    "Alajuela", "Cartago", "Coto", "Desamparados", "Grande de Térraba",
+    "Guápiles", "Heredia", "Liberia", "Limón", "Los Santos",
+    "Nicoya", "Occidente", "Osa", "Palmar", "Peninsular",
+    "Pérez Zeledón", "Puriscal", "Sarapiquí", "San Carlos",
+    "San José Central", "San José Norte", "San José Oeste", "San José Sur",
+    "Santa Cruz", "Sulá", "Turrialba", "Zona Norte-Norte",
 ];
 
 // ─── Add institution modal ────────────────────────────────────────────────────
+type NewInstData = { name: string; code: string; tipoInstitucion: string; direccionRegional: string; circuito: string; address: string; };
+
 function AddInstitutionModal({ onSave, onClose }: {
-    onSave: (data: { name: string; code: string; address: string }) => void;
+    onSave: (data: NewInstData) => void;
     onClose: () => void;
 }) {
     const [name,    setName]    = useState("");
     const [code,    setCode]    = useState("");
+    const [tipo,    setTipo]    = useState("");
+    const [dir,     setDir]     = useState("");
+    const [circ,    setCirc]    = useState("");
     const [address, setAddress] = useState("");
-    const valid = name.trim() !== "" && code.trim() !== "";
+
+    const valid = name.trim() !== "" && code.trim() !== "" && tipo !== "" && dir !== "" && circ.trim() !== "";
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (!valid) return;
-        onSave({ name: name.trim(), code: code.trim().toUpperCase(), address: address.trim() });
+        onSave({
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            tipoInstitucion: tipo,
+            direccionRegional: dir,
+            circuito: circ.trim(),
+            address: address.trim(),
+        });
     };
 
     return (
@@ -40,16 +77,34 @@ function AddInstitutionModal({ onSave, onClose }: {
                 <form onSubmit={handleSubmit}>
                     <div className={styles.instModalBody}>
                         <div className={styles.instField}>
-                            <label>Nombre</label>
-                            <input type="text" placeholder="Ej: Instituto Nacional Central" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+                            <label>Nombre del centro educativo</label>
+                            <input type="text" placeholder="Ej: Liceo Nacional de Costa Rica" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
                         </div>
                         <div className={styles.instField}>
                             <label>Código (3-4 letras)</label>
-                            <input type="text" placeholder="Ej: INC" maxLength={4} value={code} onChange={(e) => setCode(e.target.value)} required />
+                            <input type="text" placeholder="Ej: LNCR" maxLength={4} value={code} onChange={(e) => setCode(e.target.value)} required />
                         </div>
                         <div className={styles.instField}>
-                            <label>Dirección (opcional)</label>
-                            <input type="text" placeholder="Ej: San Salvador" value={address} onChange={(e) => setAddress(e.target.value)} />
+                            <label>Tipo de institución</label>
+                            <select value={tipo} onChange={(e) => setTipo(e.target.value)} required>
+                                <option value="">Seleccionar...</option>
+                                {TIPOS_INSTITUCION.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
+                        <div className={styles.instField}>
+                            <label>Dirección Regional (MEP)</label>
+                            <select value={dir} onChange={(e) => setDir(e.target.value)} required>
+                                <option value="">Seleccionar...</option>
+                                {DIRECCIONES_REGIONALES.map((d) => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </div>
+                        <div className={styles.instField}>
+                            <label>Circuito</label>
+                            <input type="text" placeholder="Ej: 01 o 02-A" value={circ} onChange={(e) => setCirc(e.target.value)} required />
+                        </div>
+                        <div className={styles.instField}>
+                            <label>Ubicación (opcional)</label>
+                            <input type="text" placeholder="Ej: San José, Montes de Oca" value={address} onChange={(e) => setAddress(e.target.value)} />
                         </div>
                     </div>
                     <div className={styles.instModalFooter}>
@@ -69,7 +124,7 @@ export function Sidebar() {
     const [open,       setOpen]       = useState(false);
     const [addingInst, setAddingInst] = useState(false);
 
-    const handleAddInst = (data: { name: string; code: string; address: string }) => {
+    const handleAddInst = (data: NewInstData) => {
         addInstitution(data);
         setAddingInst(false);
     };

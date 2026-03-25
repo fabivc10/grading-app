@@ -1,8 +1,13 @@
-import { useState, useMemo, FormEvent } from "react";
+import { useState, useMemo, useRef, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useEvaluacionesStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import type { TemaItem, EvalEntry, EvalCategory, StudentEval, EvalWeights } from "../types";
+import { PlusIcon, TrashIcon, EditIcon, ChevronDownIcon, SettingsIcon, FilterIcon, SortIcon, CheckIcon } from "../../../shared/ui/icons";
+import { SearchInput } from "../../../shared/ui/SearchInput";
+import { Modal } from "../../../shared/ui/Modal";
+import { EmptyState } from "../../../shared/ui/EmptyState";
+import { FormField } from "../../../shared/ui/FormField";
 import styles from "../EvaluacionesPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -45,6 +50,15 @@ function calcScore(record: StudentEval, conductaPct: number, weights: EvalWeight
     total += (asistPct(record.asistencia) / 100) * weights.asistencia;
     return Math.min(100, Math.max(0, Math.round(total)));
 }
+function calcScorePeriod(record: StudentEval, conductaPct: number, weights: EvalWeights, period: 's1' | 's2'): number {
+    let total = (conductaPct / 100) * weights.conducta;
+    for (const c of ALL_CATS) {
+        const entries = record[c.key].filter((e) => e.semestre === period);
+        total += (catPct(entries) / 100) * weights[c.key];
+    }
+    total += (asistPct(record.asistencia) / 100) * weights.asistencia;
+    return Math.min(100, Math.max(0, Math.round(total)));
+}
 type StudentStatus = "eximido" | "aprobado" | "reprobado";
 function getStatus(score: number): StudentStatus {
     if (score >= 90) return "eximido";
@@ -64,21 +78,13 @@ function StatusBadge({ score }: { score: number }) {
     return <span className={cls}>{STATUS_LABEL[s]}</span>;
 }
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-const PlusIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const TrashIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>;
-const EditIcon  = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const CloseIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const ChevronIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
-const GearIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
-const SearchIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-const FilterIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const SortIcon   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/></svg>;
-const CheckIcon  = ({ className }: { className?: string }) => <svg className={className} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 16 4 11"/></svg>;
 
 // ─── Conducta Circle ──────────────────────────────────────────────────────────
 function ConductaCircle({ pct, onChange }: { pct: number; onChange: (v: number) => void }) {
     const [editing, setEditing] = useState(false);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleMouseLeave = () => { closeTimer.current = setTimeout(() => setEditing(false), 300); };
+    const handleMouseEnter = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
     const color = pct >= 80 ? "var(--accent)" : pct >= 50 ? "#f59e0b" : "#ef4444";
     const size  = 40;
     const sw    = 3.5;
@@ -86,7 +92,7 @@ function ConductaCircle({ pct, onChange }: { pct: number; onChange: (v: number) 
     const circ  = 2 * Math.PI * r;
     const off   = circ * (1 - pct / 100);
     return (
-        <div className={styles.conductaWrap}>
+        <div className={styles.conductaWrap} onMouseLeave={handleMouseLeave} onMouseEnter={handleMouseEnter} onClick={(e) => e.stopPropagation()}>
             <button type="button" className={styles.conductaCircle}
                 onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }} title={`Conducta: ${pct}%`}>
                 <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
@@ -98,11 +104,10 @@ function ConductaCircle({ pct, onChange }: { pct: number; onChange: (v: number) 
             </button>
             {editing && (
                 <div className={styles.conductaPopover} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.conductaPopoverLabel}>Conducta personal</div>
+                    <div className={styles.conductaPopoverLabel}>Conducta</div>
                     <input type="range" min={0} max={100} step={1} value={pct}
                         className={styles.conductaSlider} onChange={(e) => onChange(Number(e.target.value))} />
                     <div className={styles.conductaPopoverVal}>{pct}%</div>
-                    <button className={styles.conductaPopoverClose} onClick={() => setEditing(false)}>Listo</button>
                 </div>
             )}
         </div>
@@ -121,60 +126,52 @@ function PuntoModal({ initial, temaName, onSave, onClose }: {
     const isEdit = Boolean(initial.id);
     const valid  = tema.trim() !== "" && nombre.trim() !== "" && valor > 0;
 
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button type="submit" form="punto-form" className={styles.saveBtn} disabled={!valid}>{isEdit ? "Guardar" : "Agregar"}</button>
+        </>
+    );
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal} style={{ maxWidth: 400 }}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>{isEdit ? "Editar punto" : "Nuevo punto de evaluación"}</span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
+        <Modal open onClose={onClose} title={isEdit ? "Editar punto" : "Nuevo punto de evaluación"} footer={footer}>
+            <form id="punto-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
+                onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave({ id: initial.id ?? uid(), tema: tema.trim(), nombre: nombre.trim(), descripcion: descripcion.trim(), valor, nota: initial.nota ?? 0, notaDescripcion: initial.notaDescripcion ?? "" }); }}>
+                {!temaName && (
+                    <FormField label="Tema" required>
+                        <input className={styles.formInput} type="text" placeholder="Ej: Ecosistemas" value={tema}
+                            onChange={(e) => setTema(e.target.value)} autoFocus required />
+                    </FormField>
+                )}
+                <div className={styles.row2}>
+                    <FormField label="Nombre del punto" required>
+                        <input className={styles.formInput} type="text" placeholder="Ej: Definición" value={nombre}
+                            onChange={(e) => setNombre(e.target.value)} autoFocus={Boolean(temaName)} required />
+                    </FormField>
+                    <FormField label="Valor máximo (pts)" required>
+                        <input className={styles.formInput} type="number" min={0.5} step={0.5} value={valor}
+                            onChange={(e) => setValor(Math.max(0, Number(e.target.value)))} required />
+                    </FormField>
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave({ id: initial.id ?? uid(), tema: tema.trim(), nombre: nombre.trim(), descripcion: descripcion.trim(), valor, nota: initial.nota ?? 0 }); }} style={{ display: "contents" }}>
-                    <div className={styles.modalBody}>
-                        {!temaName && (
-                            <div className={styles.field}>
-                                <label>Tema</label>
-                                <input type="text" placeholder="Ej: Ecosistemas" value={tema}
-                                    onChange={(e) => setTema(e.target.value)} autoFocus required />
-                            </div>
-                        )}
-                        <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Nombre del punto</label>
-                                <input type="text" placeholder="Ej: Definición" value={nombre}
-                                    onChange={(e) => setNombre(e.target.value)} autoFocus={Boolean(temaName)} required />
-                            </div>
-                            <div className={styles.field}>
-                                <label>Valor máximo (pts)</label>
-                                <input type="number" min={0.5} step={0.5} value={valor}
-                                    onChange={(e) => setValor(Math.max(0, Number(e.target.value)))} required />
-                            </div>
-                        </div>
-                        <div className={styles.field}>
-                            <label>Descripción <span style={{ fontWeight: 400, color: "var(--tx-3)" }}>(opcional)</span></label>
-                            <input type="text" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                        </div>
-                    </div>
-                    <div className={styles.modalFooter}>
-                        <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.saveBtn} disabled={!valid}>{isEdit ? "Guardar" : "Agregar"}</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <FormField label="Descripción">
+                    <input className={styles.formInput} type="text" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                </FormField>
+            </form>
+        </Modal>
     );
 }
 
 // ─── AddEvalModal — global, applies to student / asignatura / group ───────────
 function AddEvalModal({ records, asignaturas, onSave, onClose }: {
     records: StudentEval[];
-    asignaturas: { id: string; nombre: string; grupo: string; año: number }[];
-    onSave: (recordIds: string[], category: EvalCategory, nombre: string, items: TemaItem[]) => void;
+    asignaturas: { id: string; nombre: string; grupo: number; seccion: number; año: number }[];
+    onSave: (recordIds: string[], category: EvalCategory, nombre: string, items: TemaItem[], semestre: 's1' | 's2') => void;
     onClose: () => void;
 }) {
     type LocalPunto = { id: string; nombre: string; valor: number };
     type LocalTema  = { id: string; nombre: string; puntos: LocalPunto[] };
 
     const [cat,        setCat]        = useState<EvalCategory>("prueba");
+    const [semestre,   setSemestre]   = useState<'s1' | 's2'>('s1');
     const [nombre,     setNombre]     = useState("");
     const [temas,      setTemas]      = useState<LocalTema[]>([]);
     const [expandedId, setExpandedId] = useState<string>("");
@@ -192,7 +189,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
     }, [records]);
 
     const grupos = useMemo(() =>
-        [...new Set(asignaturas.map((a) => `${a.año} · ${a.grupo}`))].sort(),
+        [...new Set(asignaturas.map((a) => `${a.año} · ${a.grupo} · ${a.seccion}`))].sort(),
         [asignaturas]
     );
 
@@ -202,9 +199,9 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
         if (target === "estudiante" && estId && asigId)
             return records.filter((r) => r.estudianteId === estId && r.asignaturaId === asigId).map((r) => r.id);
         if (target === "grupo" && grupo) {
-            const [yearStr, grpName] = grupo.split(" · ");
+            const [yearStr, grpStr, secStr] = grupo.split(" · ");
             const year = Number(yearStr);
-            const ids  = new Set(asignaturas.filter((a) => a.año === year && a.grupo === grpName).map((a) => a.id));
+            const ids  = new Set(asignaturas.filter((a) => a.año === year && String(a.grupo) === grpStr && String(a.seccion) === secStr).map((a) => a.id));
             return records.filter((r) => ids.has(r.asignaturaId)).map((r) => r.id);
         }
         return [];
@@ -260,39 +257,46 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                 nombre: p.nombre.trim(),
                 descripcion: "",
                 valor: p.valor,
-                nota: 0,
+                nota: p.valor,
+                notaDescripcion: "",
             }))
         );
-        onSave(targetIds, cat, nombre.trim(), items);
+        onSave(targetIds, cat, nombre.trim(), items, semestre);
     };
 
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button type="submit" form="addeval-form" className={styles.saveBtn} disabled={!valid}>Añadir evaluación</button>
+        </>
+    );
+
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal} style={{ maxWidth: 520, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>Añadir evaluación</span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
-                </div>
-                <form onSubmit={handleSave} style={{ display: "contents" }}>
-                    <div className={styles.modalBody} style={{ overflowY: "auto", flex: 1 }}>
+        <Modal open onClose={onClose} title="Añadir evaluación" footer={footer}>
+            <form id="addeval-form" onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
                         {/* Category + Name */}
                         <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Categoría</label>
-                                <select value={cat} onChange={(e) => setCat(e.target.value as EvalCategory)}>
+                            <FormField label="Categoría">
+                                <select className={styles.formInput} value={cat} onChange={(e) => setCat(e.target.value as EvalCategory)}>
                                     {ALL_CATS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
                                 </select>
-                            </div>
-                            <div className={styles.field}>
-                                <label>Nombre</label>
-                                <input type="text" placeholder="Ej: Prueba 1" value={nombre}
+                            </FormField>
+                            <FormField label="Nombre" required>
+                                <input className={styles.formInput} type="text" placeholder="Ej: Prueba 1" value={nombre}
                                     onChange={(e) => setNombre(e.target.value)} required />
-                            </div>
+                            </FormField>
                         </div>
 
+                        {/* Semestre */}
+                        <FormField label="Semestre">
+                            <select className={styles.formInput} value={semestre} onChange={e => setSemestre(e.target.value as 's1' | 's2')}>
+                                <option value="s1">Semestre I</option>
+                                <option value="s2">Semestre II</option>
+                            </select>
+                        </FormField>
+
                         {/* Temas y Puntos builder */}
-                        <div className={styles.field}>
-                            <label>Temas y puntos a evaluar</label>
+                        <FormField label="Contenido">
                             <div className={styles.temaBuilderList}>
                                 {temas.map((tema, ti) => {
                                     const isOpen = expandedId === tema.id;
@@ -306,7 +310,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                                 onClick={() => isOpen ? (temaOk && setExpandedId("")) : setExpandedId(tema.id)}
                                                 style={{ cursor: "pointer" }}
                                             >
-                                                <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}><ChevronIcon /></span>
+                                                <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                                                 <span className={styles.temaBuilderNum}>Tema {ti + 1}</span>
                                                 {!isOpen ? (
                                                     <span className={styles.temaBuilderCollapsedName}>
@@ -369,7 +373,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                     );
                                 })}
                                 <button type="button" className={styles.builderAddTemaBtn} onClick={addTema}>
-                                    <PlusIcon /> Agregar tema
+                                    <PlusIcon /> Agregar contenido
                                 </button>
                             </div>
                             {totalPts > 0 && (
@@ -377,54 +381,46 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                     Total: <strong>{totalPts} pts</strong>
                                 </div>
                             )}
-                        </div>
+                        </FormField>
 
                         {/* Target */}
-                        <div className={styles.field}>
-                            <label>Aplicar a</label>
-                            <div className={styles.catRadios}>
-                                <button type="button" className={`${styles.catRadioBtn} ${target === "asignatura" ? styles.catRadioActive : ""}`}
-                                    onClick={() => setTarget("asignatura")}>Asignatura</button>
-                                <button type="button" className={`${styles.catRadioBtn} ${target === "grupo" ? styles.catRadioActive : ""}`}
-                                    onClick={() => setTarget("grupo")}>Grupo</button>
-                                <button type="button" className={`${styles.catRadioBtn} ${target === "estudiante" ? styles.catRadioActive : ""}`}
-                                    onClick={() => setTarget("estudiante")}>Estudiante</button>
-                            </div>
-                        </div>
+                        <FormField label="Aplicar a">
+                            <select className={styles.formInput} value={target} onChange={(e) => setTarget(e.target.value as "asignatura" | "grupo" | "estudiante")}>
+                                {asignaturas.length > 0  && <option value="asignatura">Asignatura</option>}
+                                {grupos.length > 0       && <option value="grupo">Grupo</option>}
+                                {students.length > 0     && <option value="estudiante">Estudiante</option>}
+                            </select>
+                        </FormField>
                         {target === "asignatura" && (
-                            <div className={styles.field}>
-                                <label>Asignatura</label>
-                                <select value={asigId} onChange={(e) => setAsigId(e.target.value)} required>
+                            <FormField label="Asignatura" required>
+                                <select className={styles.formInput} value={asigId} onChange={(e) => setAsigId(e.target.value)} required>
                                     <option value="">Selecciona…</option>
                                     {asignaturas.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo} · {a.año}</option>)}
                                 </select>
-                            </div>
+                            </FormField>
                         )}
                         {target === "grupo" && (
-                            <div className={styles.field}>
-                                <label>Grupo</label>
-                                <select value={grupo} onChange={(e) => setGrupo(e.target.value)} required>
+                            <FormField label="Grupo" required>
+                                <select className={styles.formInput} value={grupo} onChange={(e) => setGrupo(e.target.value)} required>
                                     <option value="">Selecciona…</option>
                                     {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
                                 </select>
-                            </div>
+                            </FormField>
                         )}
                         {target === "estudiante" && (
                             <div className={styles.row2}>
-                                <div className={styles.field}>
-                                    <label>Estudiante</label>
-                                    <select value={estId} onChange={(e) => { setEstId(e.target.value); setAsigId(""); }} required>
+                                <FormField label="Estudiante" required>
+                                    <select className={styles.formInput} value={estId} onChange={(e) => { setEstId(e.target.value); setAsigId(""); }} required>
                                         <option value="">Selecciona…</option>
                                         {students.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                                     </select>
-                                </div>
-                                <div className={styles.field}>
-                                    <label>Asignatura</label>
-                                    <select value={asigId} onChange={(e) => setAsigId(e.target.value)} required disabled={!estId}>
+                                </FormField>
+                                <FormField label="Asignatura" required>
+                                    <select className={styles.formInput} value={asigId} onChange={(e) => setAsigId(e.target.value)} required disabled={!estId}>
                                         <option value="">Selecciona…</option>
                                         {estAsigs.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo}</option>)}
                                     </select>
-                                </div>
+                                </FormField>
                             </div>
                         )}
                         {targetIds.length > 0 && (
@@ -432,14 +428,8 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                 Se añadirá a <strong>{targetIds.length}</strong> registro{targetIds.length !== 1 ? "s" : ""}
                             </div>
                         )}
-                    </div>
-                    <div className={styles.modalFooter}>
-                        <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.saveBtn} disabled={!valid}>Añadir evaluación</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+            </form>
+        </Modal>
     );
 }
 
@@ -456,33 +446,101 @@ function WeightsModal({ initial, onSave, onClose }: {
         conducta: "Conducta", cotidiano: "Trabajo Cotidiano", tareas: "Tareas",
         prueba: "Prueba", proyecto: "Proyecto", asistencia: "Asistencia",
     };
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button type="submit" form="weights-form" className={styles.saveBtn} disabled={!valid}>Aplicar</button>
+        </>
+    );
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>Distribución evaluativa</span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
+        <Modal open onClose={onClose} title="Distribución evaluativa" footer={footer}>
+            <form id="weights-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
+                onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave(w); }}>
+                <div className={styles.row2}>
+                    {(Object.keys(labels) as (keyof EvalWeights)[]).map((key) => (
+                        <FormField key={key} label={labels[key]}>
+                            <input className={styles.formInput} type="number" min={0} max={100} value={w[key]} onChange={setField(key)} />
+                        </FormField>
+                    ))}
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave(w); }} style={{ display: "contents" }}>
-                    <div className={styles.modalBody}>
-                        <div className={styles.row2}>
-                            {(Object.keys(labels) as (keyof EvalWeights)[]).map((key) => (
-                                <div key={key} className={styles.field}>
-                                    <label>{labels[key]}</label>
-                                    <input type="number" min={0} max={100} value={w[key]} onChange={setField(key)} />
-                                </div>
-                            ))}
-                        </div>
-                        <div className={`${styles.sumLine} ${!valid ? styles.sumWarn : ""}`}>
-                            Suma total: <strong>{total}</strong>{!valid && " — debe sumar 100"}
-                        </div>
-                    </div>
-                    <div className={styles.modalFooter}>
-                        <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.saveBtn} disabled={!valid}>Aplicar</button>
-                    </div>
-                </form>
+                <div className={`${styles.sumLine} ${!valid ? styles.sumWarn : ""}`}>
+                    Suma total: <strong>{total}</strong>{!valid && " — debe sumar 100"}
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ─── TemaGroupRow — collapsible contenido with puntos ────────────────────────
+function TemaGroupRow({ temaName, items, onAddPunto, onEditPunto, onDeleteItem, onNotaBlur, onNotaDescBlur }: {
+    temaName: string;
+    items: TemaItem[];
+    onAddPunto: () => void;
+    onEditPunto: (item: TemaItem) => void;
+    onDeleteItem: (id: string) => void;
+    onNotaBlur: (id: string, raw: string) => void;
+    onNotaDescBlur: (id: string, val: string) => void;
+}) {
+    const [open, setOpen] = useState(true);
+    const maxT  = items.reduce((s, i) => s + i.valor, 0);
+    const notaT = items.reduce((s, i) => s + Math.min(i.nota, i.valor), 0);
+    const tPct  = toPct(notaT, maxT);
+    const tHas  = items.some((i) => i.nota > 0);
+    const tCl   = pctClass(tPct, tHas, styles as unknown as CSSMod);
+
+    return (
+        <div className={styles.temaGroup}>
+            <div className={styles.temaGroupHead} onClick={() => setOpen(v => !v)}>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
+                <span className={styles.temaGroupName}>{temaName}</span>
+                <span className={styles.temaGroupScore}>
+                    {notaT}/{maxT} pts
+                    {tHas && <span className={`${styles.temaGroupPct} ${tCl}`}> · {tPct}%</span>}
+                </span>
+                <button type="button" className={styles.temaAddBtn}
+                    onClick={(e) => { e.stopPropagation(); onAddPunto(); }}>
+                    <PlusIcon /> Punto
+                </button>
             </div>
+            {open && (
+                <div className={styles.temaItems}>
+                    {items.map((item) => (
+                        <div key={item.id} className={styles.puntoRow}>
+                            <div className={styles.puntoInfo}>
+                                <span className={styles.puntoNombre}>{item.nombre}</span>
+                                {item.descripcion && <span className={styles.puntoDesc}>{item.descripcion}</span>}
+                            </div>
+                            <div className={styles.puntoGrade}>
+                                <input
+                                    key={`${item.id}-nd`}
+                                    type="text"
+                                    className={styles.notaDescInput}
+                                    defaultValue={item.notaDescripcion}
+                                    placeholder="Observación..."
+                                    onBlur={(e) => onNotaDescBlur(item.id, e.target.value)}
+                                />
+                                <div className={styles.notaCell}>
+                                    <input
+                                        key={`${item.id}-${item.nota}`}
+                                        type="number"
+                                        className={styles.notaInput}
+                                        defaultValue={item.nota}
+                                        min={0}
+                                        max={item.valor}
+                                        step={0.5}
+                                        onBlur={(e) => onNotaBlur(item.id, e.target.value)}
+                                    />
+                                    <span className={styles.notaMax}>/{item.valor}</span>
+                                </div>
+                            </div>
+                            <div className={styles.puntoActions}>
+                                <button type="button" className={styles.iconBtn} onClick={() => onEditPunto(item)}><EditIcon /></button>
+                                <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`} onClick={() => onDeleteItem(item.id)}><TrashIcon /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -525,13 +583,18 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
         const nota = Math.min(item.valor, Math.max(0, Number(raw) || 0));
         if (nota !== item.nota) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, nota } : i) });
     };
+    const handleNotaDescBlur = (itemId: string, val: string) => {
+        const item = entry.items.find((i) => i.id === itemId);
+        if (!item) return;
+        if (val !== item.notaDescripcion) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, notaDescripcion: val } : i) });
+    };
 
     const pc = pctClass(pct, hasItems, styles as unknown as CSSMod);
 
     return (
         <div className={styles.entryRow}>
             <div className={styles.entryHead} onClick={() => setOpen((v) => !v)}>
-                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronIcon /></span>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                 <span className={styles.entryName}>{entry.nombre}</span>
                 <span className={styles.entryAlloc}>{entry.pct} pts</span>
                 {hasItems && <span className={`${styles.entryPct} ${pc}`}>{pct}%</span>}
@@ -545,71 +608,22 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
                 <div className={styles.entryBody}>
                     {temasMap.size === 0 && <p className={styles.emptyItems}>Sin temas — añade el primer punto</p>}
 
-                    {[...temasMap.entries()].map(([temaName, items]) => {
-                        const maxT   = items.reduce((s, i) => s + i.valor, 0);
-                        const notaT  = items.reduce((s, i) => s + Math.min(i.nota, i.valor), 0);
-                        const tPct   = toPct(notaT, maxT);
-                        const tHas   = items.some((i) => i.nota > 0);
-                        const tPctCl = pctClass(tPct, tHas, styles as unknown as CSSMod);
-                        return (
-                            <div key={temaName} className={styles.temaGroup}>
-                                <div className={styles.temaGroupHead}>
-                                    <span className={styles.temaGroupName}>{temaName}</span>
-                                    <span className={styles.temaGroupScore}>
-                                        {notaT}/{maxT} pts
-                                        {tHas && <span className={`${styles.temaGroupPct} ${tPctCl}`}> · {tPct}%</span>}
-                                    </span>
-                                    <button type="button" className={styles.temaAddBtn}
-                                        onClick={() => setPuntoModal({ temaName })}>
-                                        <PlusIcon /> Punto
-                                    </button>
-                                </div>
-                                <table className={styles.temaTable}>
-                                    <thead>
-                                        <tr>
-                                            <th>Punto</th>
-                                            <th>Descripción</th>
-                                            <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Obtenida / Valor</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {items.map((item) => (
-                                            <tr key={item.id}>
-                                                <td>{item.nombre}</td>
-                                                <td className={styles.descCell}>{item.descripcion || <span style={{ color: "var(--tx-3)" }}>—</span>}</td>
-                                                <td>
-                                                    <div className={styles.notaCell}>
-                                                        <input
-                                                            key={`${item.id}-${item.nota}`}
-                                                            type="number"
-                                                            className={styles.notaInput}
-                                                            defaultValue={item.nota}
-                                                            min={0}
-                                                            max={item.valor}
-                                                            step={0.5}
-                                                            onBlur={(e) => handleNotaBlur(item.id, e.target.value)}
-                                                        />
-                                                        <span className={styles.notaMax}>/{item.valor}</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: "flex", gap: "0.1rem", justifyContent: "flex-end" }}>
-                                                        <button type="button" className={styles.iconBtn} onClick={() => setPuntoModal({ temaName, item })}><EditIcon /></button>
-                                                        <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`} onClick={() => handleDeleteItem(item.id)}><TrashIcon /></button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        );
-                    })}
+                    {[...temasMap.entries()].map(([temaName, items]) => (
+                        <TemaGroupRow
+                            key={temaName}
+                            temaName={temaName}
+                            items={items}
+                            onAddPunto={() => setPuntoModal({ temaName })}
+                            onEditPunto={(item) => setPuntoModal({ temaName, item })}
+                            onDeleteItem={handleDeleteItem}
+                            onNotaBlur={handleNotaBlur}
+                            onNotaDescBlur={handleNotaDescBlur}
+                        />
+                    ))}
 
                     <div className={styles.entryFooter}>
                         <button type="button" className={styles.addItemBtn} onClick={() => setPuntoModal({})}>
-                            <PlusIcon /> Nuevo tema
+                            <PlusIcon /> Agregar contenido
                         </button>
                         <span className={styles.totalLine}>
                             Total: <strong>{entry.items.reduce((s, i) => s + Math.min(i.nota, i.valor), 0)}</strong>/{entry.pct} pts
@@ -680,15 +694,25 @@ function AsignaturaPanel({ record, conductaPct, weights, asigNombre, onUpdate, o
 }) {
     const [open, setOpen] = useState(false);
     const score  = calcScore(record, conductaPct, weights);
+    const scoreS1 = calcScorePeriod(record, conductaPct, weights, 's1');
+    const scoreS2 = calcScorePeriod(record, conductaPct, weights, 's2');
     const pc     = pctClass(score, true, styles as unknown as CSSMod);
 
     return (
         <div className={styles.asigPanel}>
             <div className={styles.asigPanelHead} onClick={() => setOpen((v) => !v)}>
-                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronIcon /></span>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                 <span className={styles.asigPanelName}>{asigNombre}</span>
+                <span className={styles.periodBadges}>
+                    <span className={`${styles.periodBadge} ${pctClass(scoreS1, true, styles as unknown as CSSMod)}`}>S1: {scoreS1}%</span>
+                    <span className={`${styles.periodBadge} ${pctClass(scoreS2, true, styles as unknown as CSSMod)}`}>S2: {scoreS2}%</span>
+                </span>
                 <span className={`${styles.asigScore} ${pc}`}>{score}%</span>
                 <StatusBadge score={score} />
+                <Link to="/app/asistencia" className={styles.asistChip}
+                    onClick={(e) => e.stopPropagation()}>
+                    {asistPct(record.asistencia)}% asist. →
+                </Link>
                 <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`}
                     onClick={(e) => { e.stopPropagation(); onDelete(record.id); }}><TrashIcon /></button>
             </div>
@@ -704,9 +728,6 @@ function AsignaturaPanel({ record, conductaPct, weights, asigNombre, onUpdate, o
                             onChange={(entries) => onUpdate(record.id, { [c.key]: entries })}
                         />
                     ))}
-                    <Link to="/app/asistencia" className={styles.asistChip}>
-                        {asistPct(record.asistencia)}% asistencia →
-                    </Link>
                 </div>
             )}
         </div>
@@ -726,7 +747,7 @@ function StudentGroup({ nombre, estudianteId, records, conductaPct, weights, asi
     return (
         <div className={styles.studentCard}>
             <div className={styles.studentCardHead} onClick={() => setOpen((v) => !v)}>
-                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronIcon /></span>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                 <span className={styles.studentName}>{nombre}</span>
                 <span className={styles.asigLabel}>{records.length} asignatura{records.length !== 1 ? "s" : ""}</span>
                 <ConductaCircle pct={conductaPct} onChange={(pct) => onConductaChange(estudianteId, pct)} />
@@ -752,7 +773,7 @@ export function EvaluacionesPage() {
     const weights       = useEvaluacionesStore((s) => s.weights);
     const storeUpdate   = useEvaluacionesStore((s) => s.updateRecord);
     const storeDelete   = useEvaluacionesStore((s) => s.deleteRecord);
-    const storeWeights  = useEvaluacionesStore((s) => s.setWeights);
+
     const storeConducta = useEvaluacionesStore((s) => s.updateConducta);
     const storeAddEval  = useEvaluacionesStore((s) => s.addEvalEntry);
 
@@ -761,7 +782,7 @@ export function EvaluacionesPage() {
     const [filterGrupo,  setFilterGrupo]  = useState("");
     const [filterAsig,   setFilterAsig]   = useState("");
     const [filterEstado, setFilterEstado] = useState<StudentStatus | "">("");
-    const [showWeights, setShowWeights] = useState(false);
+
     const [showAddEval, setShowAddEval] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showSort,    setShowSort]    = useState(false);
@@ -867,9 +888,9 @@ export function EvaluacionesPage() {
                     </p>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <button type="button" className={styles.iconBtnToolbar} onClick={() => setShowWeights(true)}>
-                        <GearIcon /> Distribución evaluativa
-                    </button>
+                    <Link to="/app/configuracion" className={styles.iconBtnToolbar}>
+                        <SettingsIcon /> Configuración
+                    </Link>
                     <button type="button" className={styles.addEvalBtn} onClick={() => setShowAddEval(true)}>
                         <PlusIcon /> Añadir evaluación
                     </button>
@@ -878,12 +899,7 @@ export function EvaluacionesPage() {
 
             {/* Toolbar */}
             <div className={styles.toolbar}>
-                <div className={styles.searchWrap}>
-                    <SearchIcon />
-                    <input className={styles.searchInput} type="text" placeholder="Buscar estudiante…"
-                        value={search} onChange={(e) => setSearch(e.target.value)} />
-                    {search && <button className={styles.searchClear} onClick={() => setSearch("")}><CloseIcon /></button>}
-                </div>
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar estudiante…" width={220} />
                 <div className={styles.filterBtnWrap}>
                     <button type="button"
                         className={`${styles.filterToggleBtn}${activeFilterCount > 0 ? ` ${styles.filterToggleActive}` : ""}`}
@@ -918,15 +934,13 @@ export function EvaluacionesPage() {
                                 </div>
                                 <div className={styles.filterPopoverRow}>
                                     <label>Estado</label>
-                                    <div className={styles.filterChips}>
-                                        {(["eximido", "aprobado", "reprobado"] as StudentStatus[]).map((s) => (
-                                            <button key={s} type="button"
-                                                className={`${styles.filterChip} ${styles[`filterChip_${s}`]}${filterEstado === s ? ` ${styles.filterChipActive}` : ""}`}
-                                                onClick={() => setFilterEstado(filterEstado === s ? "" : s)}>
-                                                {STATUS_LABEL[s]}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <select className={styles.filterSelect} value={filterEstado}
+                                        onChange={(e) => setFilterEstado(e.target.value as StudentStatus | "")}>
+                                        <option value="">Todos</option>
+                                        <option value="eximido">Eximido</option>
+                                        <option value="aprobado">Aprobado</option>
+                                        <option value="reprobado">Reprobado</option>
+                                    </select>
                                 </div>
                                 {activeFilterCount > 0 && (
                                     <button type="button" className={styles.filterClearBtn}
@@ -967,14 +981,10 @@ export function EvaluacionesPage() {
             {/* Body */}
             <div className={styles.body}>
                 {studentGroups.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--bd-2)" }}>
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/>
-                        </svg>
-                        <p>{records.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}</p>
-                        <span>{records.length === 0 ? "Agrega estudiantes en la sección Estudiantes" : "Intenta con otros filtros"}</span>
-                    </div>
+                    <EmptyState
+                        title={records.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}
+                        subtitle={records.length === 0 ? "Agrega estudiantes en la sección Estudiantes" : "Intenta con otros filtros"}
+                    />
                 ) : (
                     sortedGroups.map((group) => (
                         <StudentGroup key={group.key} nombre={group.nombre} estudianteId={group.key}
@@ -985,16 +995,12 @@ export function EvaluacionesPage() {
                 )}
             </div>
 
-            {showWeights && (
-                <WeightsModal initial={weights}
-                    onSave={(w) => { storeWeights(w); setShowWeights(false); }}
-                    onClose={() => setShowWeights(false)} />
-            )}
+
             {showAddEval && (
                 <AddEvalModal
                     records={records}
                     asignaturas={asignaturas}
-                    onSave={(ids, cat, nombre, items) => { storeAddEval(ids, cat, nombre, items); setShowAddEval(false); }}
+                    onSave={(ids, cat, nombre, items, semestre) => { storeAddEval(ids, cat, nombre, items, semestre); setShowAddEval(false); }}
                     onClose={() => setShowAddEval(false)}
                 />
             )}

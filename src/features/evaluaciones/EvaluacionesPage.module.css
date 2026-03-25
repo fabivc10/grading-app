@@ -34,52 +34,6 @@
     padding-bottom: 0.875rem;
 }
 
-/* Search bar */
-.searchWrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0;
-}
-.searchWrap > svg {
-    position: absolute;
-    left: 0.6rem;
-    color: var(--tx-3);
-    pointer-events: none;
-    flex-shrink: 0;
-}
-.searchInput {
-    padding: 0.48rem 2rem 0.48rem 2.1rem;
-    border: 1.5px solid var(--input-bd);
-    border-radius: 8px;
-    font-size: 0.8rem;
-    color: var(--tx-1);
-    background: var(--input-bg);
-    outline: none;
-    width: 190px;
-    transition: border-color 0.15s, width 0.2s;
-}
-.searchInput:focus {
-    border-color: var(--input-focus);
-    width: 220px;
-}
-.searchInput::placeholder { color: var(--tx-3); }
-.searchClear {
-    position: absolute;
-    right: 0.4rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border: none;
-    background: transparent;
-    color: var(--tx-3);
-    cursor: pointer;
-    padding: 0;
-}
-.searchClear:hover { color: var(--tx-1); }
-
 /* ── Filter button + popover ── */
 .filterBtnWrap {
     position: relative;
@@ -266,7 +220,6 @@
     background: var(--surface);
     border: 1px solid var(--bd);
     border-radius: 10px;
-    overflow: hidden;
     transition: box-shadow 0.15s;
 }
 .studentCard:hover { box-shadow: var(--shadow-sm); }
@@ -330,7 +283,7 @@
     position: absolute;
     right: 0;
     top: calc(100% + 6px);
-    z-index: 50;
+    z-index: 200;
     background: var(--surface);
     border: 1px solid var(--bd);
     border-radius: 10px;
@@ -443,6 +396,16 @@
     flex-shrink: 0;
     min-width: 38px;
     text-align: center;
+}
+.periodBadges { display: flex; gap: 0.25rem; align-items: center; flex-shrink: 0; }
+.periodBadge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    background: var(--surface-3);
+    border: 1px solid var(--bd);
+    color: var(--tx-2);
 }
 .asigBody {
     padding: 0.625rem;
@@ -649,33 +612,49 @@
 .chevronOpen { transform: rotate(180deg); }
 
 /* ── Tema table ── */
-.temaTable {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
+/* ── Punto rows inside temaGroup ── */
+.temaItems {
+    display: flex;
+    flex-direction: column;
 }
-.temaTable th {
-    text-align: left;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--tx-3);
-    padding: 0.2rem 0.5rem 0.3rem;
-    border-bottom: 1px solid var(--bd);
-    white-space: nowrap;
+.puntoRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.45rem 0.65rem 0.45rem 2rem;
+    border-top: 1px solid var(--bd);
+    background: var(--surface-2);
+    transition: background 0.1s;
 }
-.temaTable td {
-    padding: 0.3rem 0.5rem;
-    border-bottom: 1px solid var(--bd);
+.puntoRow:hover { background: var(--surface-3, #efefef); }
+.puntoInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+}
+.puntoNombre {
+    font-size: 0.78rem;
+    font-weight: 500;
     color: var(--tx-1);
-    vertical-align: middle;
 }
-.temaTable tr:last-child td { border-bottom: none; }
-.descCell {
-    color: var(--tx-2);
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.puntoDesc {
+    font-size: 0.71rem;
+    color: var(--tx-3);
+}
+.puntoGrade {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.puntoActions {
+    display: flex;
+    gap: 0.1rem;
+    flex-shrink: 0;
+    align-self: center;
 }
 .emptyItems {
     font-size: 0.78rem;
@@ -725,7 +704,11 @@
     padding: 0.38rem 0.6rem;
     background: var(--surface-3);
     border-bottom: 1px solid var(--bd);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
 }
+.temaGroupHead:hover { background: var(--surface-2); }
 .temaGroupName {
     font-size: 0.7rem;
     font-weight: 600;
@@ -813,81 +796,14 @@
 .semSummary { font-size: 0.73rem; color: var(--tx-3); }
 
 /* ── Empty state ── */
-.emptyState {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    padding: 4rem 1rem;
-    color: var(--tx-3);
-    text-align: center;
-}
-.emptyState p    { font-size: 0.9375rem; color: var(--tx-2); }
-.emptyState span { font-size: 0.8rem; }
-
-/* ══ MODAL ══ */
-.overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    padding: 1rem;
-    animation: fadeIn 0.18s ease;
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-.modal {
-    background: var(--surface);
-    border: 1px solid var(--bd);
-    border-radius: 14px;
-    width: 100%;
-    max-width: 430px;
-    box-shadow: var(--shadow-lg);
-    animation: slideUp 0.2s ease;
-    overflow: hidden;
-}
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-.modalHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.125rem 0.875rem;
-    border-bottom: 1px solid var(--bd);
-}
-.modalTitle { font-size: 0.9375rem; font-weight: 700; color: var(--tx-1); }
-.closeBtn {
-    width: 28px; height: 28px;
-    border-radius: 6px;
-    border: none; background: transparent;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--tx-3);
-    transition: background 0.12s;
-}
-.closeBtn:hover { background: var(--surface-3); color: var(--tx-1); }
-.modalBody {
-    padding: 1rem 1.125rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-}
+/* ══ MODAL (form layout helpers) ══ */
 .row2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.7rem;
 }
-.field { display: flex; flex-direction: column; gap: 0.275rem; }
-.field label { font-size: 0.78rem; font-weight: 500; color: var(--tx-2); }
-.field input, .field select {
+
+.formInput {
     padding: 0.36rem 0.6rem;
     border: 1.5px solid var(--input-bd);
     border-radius: 7px;
@@ -896,11 +812,13 @@
     background: var(--input-bg);
     outline: none;
     transition: border-color 0.15s;
+    width: 100%;
 }
-.field input:focus, .field select:focus {
+.formInput:focus {
     border-color: var(--input-focus);
     box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
 }
+.formInput::placeholder { color: var(--tx-3); }
 .sumLine {
     font-size: 0.8rem;
     color: var(--tx-2);
@@ -910,14 +828,6 @@
     border-radius: 6px;
 }
 .sumWarn { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-bd); }
-.modalFooter {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    padding: 0.8rem 1.125rem;
-    border-top: 1px solid var(--bd);
-    background: var(--surface-2);
-}
 .cancelBtn {
     padding: 0.5rem 0.9rem;
     border: 1.5px solid var(--bd-2);
@@ -1035,6 +945,8 @@
     align-items: center;
     gap: 0.2rem;
     justify-content: flex-end;
+    width: 100px;
+    flex-shrink: 0;
 }
 .notaInput {
     width: 54px;
@@ -1054,7 +966,24 @@
     font-size: 0.75rem;
     color: var(--tx-3);
     flex-shrink: 0;
+    min-width: 32px;
+    font-variant-numeric: tabular-nums;
 }
+.notaDescInput {
+    display: block;
+    width: 280px;
+    margin-top: 0;
+    padding: 0.18rem 0.35rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: var(--tx-2);
+    background: var(--input-bg);
+    outline: none;
+    transition: border-color 0.12s;
+}
+.notaDescInput:focus { border-color: var(--input-focus); }
+.notaDescInput::placeholder { color: var(--tx-3); }
 
 /* ── Tema group score display ── */
 .temaGroupScore {

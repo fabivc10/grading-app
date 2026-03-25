@@ -2,8 +2,22 @@ import { useState, useMemo } from "react";
 import { useAsignaturasStore } from "../store";
 import { useInstitutionStore } from "../../institution/store";
 import type { Asignatura, Semestre, AsignaturaFormData } from "../types";
-import { PlusIcon, EditIcon, TrashIcon, CloseIcon, UsersIcon, BookIcon, EmptyIcon, SearchIcon, SortIcon } from "../../../shared/ui/icons";
+import { PlusIcon, EditIcon, TrashIcon, UsersIcon, BookIcon, SortIcon, CheckIcon, FilterIcon } from "../../../shared/ui/icons";
+import { SearchInput } from "../../../shared/ui/SearchInput";
+import { Modal } from "../../../shared/ui/Modal";
+import { EmptyState } from "../../../shared/ui/EmptyState";
+import { FormField } from "../../../shared/ui/FormField";
 import styles from "../AsignaturasPage.module.css";
+
+
+const SORT_OPTIONS = [
+    { value: "az",       label: "Nombre A→Z" },
+    { value: "za",       label: "Nombre Z→A" },
+    { value: "lec-desc", label: "Más lecciones" },
+    { value: "lec-asc",  label: "Menos lecciones" },
+    { value: "año-desc", label: "Año más reciente" },
+    { value: "año-asc",  label: "Año más antiguo" },
+] as const;
 
 // ─── Modal state ──────────────────────────────────────────────────────────────
 type ModalState = AsignaturaFormData & { id?: string; semestres?: [Semestre, Semestre] };
@@ -11,8 +25,8 @@ type ModalState = AsignaturaFormData & { id?: string; semestres?: [Semestre, Sem
 const BLANK: AsignaturaFormData = {
     año: new Date().getFullYear(),
     nombre: "",
-    grupo: "7",
-    seccion: "A",
+    grupo: 7,
+    seccion: 1,
     lecciones: 30,
 };
 
@@ -32,7 +46,7 @@ function AsignaturaCard({
             </div>
 
             <p className={styles.cardName}>{asig.nombre}</p>
-            <span className={styles.cardGrupo}><UsersIcon />Grupo {asig.grupo}{asig.seccion ? ` · Sección ${asig.seccion}` : ""}</span>
+            <span className={styles.cardGrupo}><UsersIcon />Grupo {asig.grupo}{asig.seccion > 0 ? ` · Sección ${asig.seccion}` : ""}</span>
             <div className={styles.divider} />
             <span className={styles.cardLecciones}><BookIcon />{asig.lecciones} lecciones</span>
 
@@ -58,71 +72,57 @@ function AsignaturaModal({
     initial, onSave, onClose,
 }: { initial: ModalState; onSave: (data: AsignaturaFormData, id?: string, semestres?: [Semestre, Semestre]) => void; onClose: () => void }) {
     const [form, setForm] = useState<AsignaturaFormData>({
-        año: initial.año, nombre: initial.nombre, grupo: initial.grupo, seccion: initial.seccion ?? "A", lecciones: initial.lecciones,
+        año: initial.año, nombre: initial.nombre, grupo: initial.grupo, seccion: initial.seccion ?? 1, lecciones: initial.lecciones,
     });
     const isEdit = Boolean(initial.id);
     const set = (key: keyof AsignaturaFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
         const v = e.target.type === "number" ? Number(e.target.value) : e.target.value;
         setForm((f) => ({ ...f, [key]: v }));
     };
-    const valid = form.nombre.trim() !== "" && form.grupo.trim() !== "" && form.seccion.trim() !== "" && form.lecciones > 0;
+    const valid = form.nombre.trim() !== "" && form.grupo > 0 && form.seccion > 0 && form.lecciones > 0;
+
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button type="submit" form="asignatura-form" className={styles.saveBtn} disabled={!valid}>
+                {isEdit ? "Guardar cambios" : "Crear asignatura"}
+            </button>
+        </>
+    );
 
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>{isEdit ? "Editar asignatura" : "Nueva asignatura"}</span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
+        <Modal open onClose={onClose} title={isEdit ? "Editar asignatura" : "Nueva asignatura"} footer={footer}>
+            <form id="asignatura-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }} onSubmit={(e) => { e.preventDefault(); if (valid) onSave(form, initial.id, initial.semestres); }}>
+                <div className={styles.row2}>
+                    <FormField label="Año" required>
+                        <input className={styles.formInput} type="number" value={form.año} onChange={set("año")} min={2000} max={2100} required />
+                    </FormField>
+                    <FormField label="# Lecciones" required>
+                        <input className={styles.formInput} type="number" value={form.lecciones} onChange={set("lecciones")} min={1} max={500} required />
+                    </FormField>
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); if (valid) onSave(form, initial.id, initial.semestres); }}>
-                    <div className={styles.modalBody}>
-                        <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Año</label>
-                                <input type="number" value={form.año} onChange={set("año")} min={2000} max={2100} required />
-                            </div>
-                            <div className={styles.field}>
-                                <label># Lecciones</label>
-                                <input type="number" value={form.lecciones} onChange={set("lecciones")} min={1} max={500} required />
-                            </div>
+                <FormField label="Nombre de la asignatura" required>
+                    <input className={styles.formInput} type="text" placeholder="Ej: Matemáticas II" value={form.nombre} onChange={set("nombre")} autoFocus required />
+                </FormField>
+                <div className={styles.row2}>
+                    <FormField label="Grupo" required>
+                        <input className={styles.formInput} type="number" min={1} max={12} value={form.grupo} onChange={set("grupo")} required />
+                    </FormField>
+                    <FormField label="Sección" required>
+                        <input className={styles.formInput} type="number" min={1} placeholder="1" value={form.seccion} onChange={set("seccion")} required />
+                    </FormField>
+                </div>
+                {!isEdit && (
+                    <div className={styles.semPreview}>
+                        <p>Semestres generados automáticamente</p>
+                        <div className={styles.semestres}>
+                            <span className={styles.semBadge}>Semestre I</span>
+                            <span className={styles.semBadge}>Semestre II</span>
                         </div>
-                        <div className={styles.field}>
-                            <label>Nombre de la asignatura</label>
-                            <input type="text" placeholder="Ej: Matemáticas II" value={form.nombre} onChange={set("nombre")} autoFocus required />
-                        </div>
-                        <div className={styles.row2}>
-                            <div className={styles.field}>
-                                <label>Grupo</label>
-                                <select value={form.grupo} onChange={e => setForm(f => ({ ...f, grupo: e.target.value }))} required>
-                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
-                                        <option key={n} value={String(n)}>{n}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className={styles.field}>
-                                <label>Sección</label>
-                                <input type="text" placeholder="Ej: A" value={form.seccion} onChange={set("seccion")} required />
-                            </div>
-                        </div>
-                        {!isEdit && (
-                            <div className={styles.semPreview}>
-                                <p>Semestres generados automáticamente</p>
-                                <div className={styles.semestres}>
-                                    <span className={styles.semBadge}>Semestre I</span>
-                                    <span className={styles.semBadge}>Semestre II</span>
-                                </div>
-                            </div>
-                        )}
                     </div>
-                    <div className={styles.modalFooter}>
-                        <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.saveBtn} disabled={!valid}>
-                            {isEdit ? "Guardar cambios" : "Crear asignatura"}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                )}
+            </form>
+        </Modal>
     );
 }
 
@@ -135,15 +135,19 @@ export function AsignaturasPage() {
     const [search,      setSearch]      = useState("");
     const [filterGrupo, setFilterGrupo] = useState("");
     const [filterAño,   setFilterAño]   = useState("");
-    const [sort, setSort] = useState<"az"|"za"|"lec-desc"|"lec-asc"|"año-desc"|"año-asc">("az");
+    const [sort,        setSort]        = useState<typeof SORT_OPTIONS[number]["value"]>("az");
+    const [showFilters, setShowFilters] = useState(false);
+    const [showSort,    setShowSort]    = useState(false);
 
-    const grupos = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort(), [asignaturas]);
+    const activeFilterCount = [filterGrupo, filterAño].filter(Boolean).length;
+
+    const grupos = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort((a, b) => a - b), [asignaturas]);
     const años   = useMemo(() => [...new Set(asignaturas.map((a) => a.año))].sort((a, b) => b - a), [asignaturas]);
 
     const filtered = useMemo(() => {
         let list = asignaturas
-            .filter((a) => a.nombre.toLowerCase().includes(search.toLowerCase()) || a.grupo.toLowerCase().includes(search.toLowerCase()))
-            .filter((a) => filterGrupo ? a.grupo === filterGrupo : true)
+            .filter((a) => a.nombre.toLowerCase().includes(search.toLowerCase()) || String(a.grupo).includes(search))
+            .filter((a) => filterGrupo ? String(a.grupo) === filterGrupo : true)
             .filter((a) => filterAño   ? a.año === Number(filterAño) : true);
         return [...list].sort((a, b) => {
             if (sort === "az")       return a.nombre.localeCompare(b.nombre);
@@ -164,8 +168,6 @@ export function AsignaturasPage() {
         setModal(null);
     };
 
-    const hasFilters = search || filterGrupo || filterAño;
-
     return (
         <>
             <div className={styles.header}>
@@ -183,45 +185,76 @@ export function AsignaturasPage() {
             </div>
 
             <div className={styles.toolbar}>
-                <div className={styles.searchWrap}>
-                    <span className={styles.searchIcon}><SearchIcon /></span>
-                    <input className={styles.searchInput} type="text" placeholder="Buscar por nombre o grupo..."
-                        value={search} onChange={(e) => setSearch(e.target.value)} />
-                    {search && <button className={styles.clearSearch} onClick={() => setSearch("")}>×</button>}
-                </div>
-                <select className={styles.filterSelect} value={filterGrupo} onChange={(e) => setFilterGrupo(e.target.value)}>
-                    <option value="">Todos los grupos</option>
-                    {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select className={styles.filterSelect} value={filterAño} onChange={(e) => setFilterAño(e.target.value)}>
-                    <option value="">Todos los años</option>
-                    {años.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-                <div className={styles.sortWrap}>
-                    <span className={styles.sortIcon}><SortIcon /></span>
-                    <select className={styles.filterSelect} value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-                        <option value="az">Nombre A→Z</option>
-                        <option value="za">Nombre Z→A</option>
-                        <option value="lec-desc">Más lecciones</option>
-                        <option value="lec-asc">Menos lecciones</option>
-                        <option value="año-desc">Año más reciente</option>
-                        <option value="año-asc">Año más antiguo</option>
-                    </select>
-                </div>
-                {hasFilters && (
-                    <button className={styles.clearAll} onClick={() => { setSearch(""); setFilterGrupo(""); setFilterAño(""); }}>
-                        Limpiar filtros
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar asignatura..." width={220} />
+
+                {/* Filtrar */}
+                <div className={styles.filterBtnWrap}>
+                    <button type="button"
+                        className={`${styles.filterToggleBtn}${activeFilterCount > 0 ? ` ${styles.filterToggleActive}` : ""}`}
+                        onClick={() => { setShowFilters(v => !v); setShowSort(false); }}>
+                        <FilterIcon /> Filtrar
+                        {activeFilterCount > 0 && <span className={styles.filterBadge}>{activeFilterCount}</span>}
                     </button>
-                )}
+                    {showFilters && (
+                        <>
+                            <div className={styles.filterBackdrop} onClick={() => setShowFilters(false)} />
+                            <div className={styles.filterPopover}>
+                                <div className={styles.filterPopoverRow}>
+                                    <label>Año</label>
+                                    <select value={filterAño} onChange={(e) => setFilterAño(e.target.value)}>
+                                        <option value="">Todos</option>
+                                        {años.map((y) => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                </div>
+                                <div className={styles.filterPopoverRow}>
+                                    <label>Grupo</label>
+                                    <select value={filterGrupo} onChange={(e) => setFilterGrupo(e.target.value)}>
+                                        <option value="">Todos</option>
+                                        {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                                {activeFilterCount > 0 && (
+                                    <button type="button" className={styles.filterClearBtn}
+                                        onClick={() => { setFilterGrupo(""); setFilterAño(""); }}>
+                                        Limpiar filtros
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Ordenar */}
+                <div className={styles.filterBtnWrap}>
+                    <button type="button"
+                        className={`${styles.filterToggleBtn}${sort !== "az" ? ` ${styles.filterToggleActive}` : ""}`}
+                        onClick={() => { setShowSort(v => !v); setShowFilters(false); }}>
+                        <SortIcon /> {SORT_OPTIONS.find(o => o.value === sort)?.label ?? "Ordenar"}
+                    </button>
+                    {showSort && (
+                        <>
+                            <div className={styles.filterBackdrop} onClick={() => setShowSort(false)} />
+                            <div className={styles.filterPopover}>
+                                {SORT_OPTIONS.map((o) => (
+                                    <button key={o.value} type="button"
+                                        className={`${styles.sortOption}${sort === o.value ? ` ${styles.sortOptionActive}` : ""}`}
+                                        onClick={() => { setSort(o.value); setShowSort(false); }}>
+                                        {o.label}
+                                        {sort === o.value && <CheckIcon className={styles.sortCheckIcon} />}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             <div className={styles.grid}>
                 {filtered.length === 0 ? (
-                    <div className={styles.empty}>
-                        <EmptyIcon />
-                        <p>{asignaturas.length === 0 ? "Sin asignaturas registradas" : "Sin resultados"}</p>
-                        <span>{asignaturas.length === 0 ? 'Haz clic en "Nueva asignatura" para comenzar' : "Intenta con otros filtros"}</span>
-                    </div>
+                    <EmptyState
+                        title={asignaturas.length === 0 ? "Sin asignaturas registradas" : "Sin resultados"}
+                        subtitle={asignaturas.length === 0 ? 'Haz clic en "Nueva asignatura" para comenzar' : "Intenta con otros filtros"}
+                    />
                 ) : (
                     filtered.map((a) => (
                         <AsignaturaCard key={a.id} asig={a} onEdit={openEdit} onDelete={deleteAsignatura} />

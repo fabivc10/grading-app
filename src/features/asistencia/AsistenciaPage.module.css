@@ -38,11 +38,14 @@
     --at-notice-bg: #fefce8;
     --at-notice-bd: #ca8a04;
     --at-notice-fg: #713f12;
+
+    /* Semester divider */
+    --at-split: #5b5fc7;
 }
 
 [data-theme="dark"] {
-    --at-sem-bg:   #e8e8e8;
-    --at-sem-fg:   #111111;
+    --at-sem-bg:   #1a1d3a;
+    --at-sem-fg:   #c8d4ff;
 
     --at-mon-bg:   #161930;
     --at-mon-fg:   #7b8fe8;
@@ -69,6 +72,8 @@
     --at-notice-bg: #1c1600;
     --at-notice-bd: #854d0e;
     --at-notice-fg: #fef3c7;
+
+    --at-split: #818cf8;
 }
 
 /* ── Page layout ─────────────────────────────────────────────────────────── */
@@ -119,6 +124,42 @@
     padding: 0.25rem 0;
     border-bottom: 1.5px solid var(--bd);
     min-height: 1.75rem;
+}
+
+/* Custom asig select overlay */
+.asigSelectWrap {
+    position: relative;
+    width: 100%;
+    border-bottom: 1.5px solid var(--bd);
+    min-height: 1.75rem;
+}
+.asigSelectDisplay {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tx-1);
+    padding: 0.25rem 1.4rem 0.25rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.4;
+}
+.asigSelectNative {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.asigSelectWrap:focus-within { border-bottom-color: var(--accent); }
+
+/* Semester split divider — tall vertical line */
+.semSplit {
+    border-left: 3px solid var(--at-split) !important;
 }
 
 /* Curso select — explicit colours so OS dark-mode doesn't make text invisible */
@@ -473,6 +514,35 @@
     color-scheme: light dark;
 }
 .field input:focus { border-color: var(--accent); }
+
+.datePartsRow {
+    display: flex;
+    gap: 0.4rem;
+}
+.monthSelect {
+    flex: 1;
+    padding: 0.4rem 0.4rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    color-scheme: light dark;
+}
+.monthSelect:focus { border-color: var(--accent); }
+.dayInput {
+    width: 60px;
+    padding: 0.4rem 0.4rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    color-scheme: light dark;
+}
+.dayInput:focus { border-color: var(--accent); }
 
 .cancelBtn {
     padding: 0.42rem 0.85rem;

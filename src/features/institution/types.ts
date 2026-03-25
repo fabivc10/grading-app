@@ -4,6 +4,9 @@ export type InstitutionDTO = {
     name: string;
     code: string;
     address: string | null;
+    tipo_institucion: string | null;
+    direccion_regional: string | null;
+    circuito: string | null;
 };
 
 export type CreateInstitutionDTO = Omit<InstitutionDTO, "id">;
@@ -14,4 +17,7 @@ export type Institution = {
     name: string;
     code: string;
     address?: string;
+    tipoInstitucion?: string;
+    direccionRegional?: string;
+    circuito?: string;
 };

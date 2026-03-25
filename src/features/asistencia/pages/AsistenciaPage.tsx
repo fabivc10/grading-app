@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useAsistenciaStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore, selectCurrentInstitution } from "../../institution/store";
@@ -33,13 +34,6 @@ function fmtDay(dateStr: string): string {
 function cycleEstado(curr: EstadoAsist | null): EstadoAsist | null {
     return CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
 }
-function getCellContent(estado: EstadoAsist | null): string {
-    if (estado === 'P') return '✓';
-    if (estado === 'I') return '✗';
-    if (estado === 'T') return 'T';
-    if (estado === 'J') return 'J';
-    return '';
-}
 function getCellMod(estado: EstadoAsist | null): string {
     if (estado === 'P') return styles.cellP;
     if (estado === 'I') return styles.cellI;
@@ -69,15 +63,38 @@ type DisplayCol =
     | { type: 'day';     semId: string; semestre: 's1' | 's2'; monthKey: string;
         weekDate: string; weekIdx: number; dayKey: DayKey; date: string; dayLabel: string };
 
+// ─── Date-parts helpers ───────────────────────────────────────────────────────
+type DateParts = { month: string; day: string };
+
+function parseDateParts(d: string): DateParts {
+    if (!d) return { month: '', day: '' };
+    const p = d.split('-');
+    return {
+        month: String(parseInt(p[1] ?? '0', 10) || ''),
+        day:   String(parseInt(p[2] ?? '0', 10) || ''),
+    };
+}
+function buildFullDate(year: number, parts: DateParts): string {
+    if (!parts.month || !parts.day) return '';
+    return `${year}-${parts.month.padStart(2, '0')}-${parts.day.padStart(2, '0')}`;
+}
+
 // ─── Global Semester Config Modal ────────────────────────────────────────────
-function SemConfigModal({ cfg, onSave, onClose }: {
+function SemConfigModal({ cfg, asigYear, onSave, onClose }: {
     cfg: GlobalSemConfig;
+    asigYear: number;
     onSave: (c: GlobalSemConfig) => void;
     onClose: () => void;
 }) {
-    const [form, setForm] = useState<GlobalSemConfig>({ ...cfg });
-    const set = (key: keyof GlobalSemConfig) => (e: React.ChangeEvent<HTMLInputElement>) =>
-        setForm(f => ({ ...f, [key]: e.target.value }));
+    const [form, setForm] = useState({
+        s1Start: parseDateParts(cfg.s1Start), s1End: parseDateParts(cfg.s1End),
+        s2Start: parseDateParts(cfg.s2Start), s2End: parseDateParts(cfg.s2End),
+    });
+
+    type FK = 's1Start' | 's1End' | 's2Start' | 's2End';
+    const setField = (key: FK, part: keyof DateParts) =>
+        (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
+            setForm(f => ({ ...f, [key]: { ...f[key], [part]: e.target.value } }));
 
     return (
         <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
@@ -88,31 +105,48 @@ function SemConfigModal({ cfg, onSave, onClose }: {
                 </div>
                 <div className={styles.modalBody}>
                     <p className={styles.modalNote}>
-                        Este rango aplica globalmente a todas las asignaturas.
+                        Rango global para todas las asignaturas. El año se toma de la asignatura ({asigYear}).
                     </p>
-                    {(['s1','s2'] as const).map(s => (
+                    {(['s1', 's2'] as const).map(s => (
                         <div key={s} className={styles.semBlock}>
                             <div className={styles.semBlockTitle}>{SEM_LABELS[s]}</div>
                             <div className={styles.semBlockRow}>
-                                <div className={styles.field}>
-                                    <label>Inicio</label>
-                                    <input type="date"
-                                        value={s === 's1' ? form.s1Start : form.s2Start}
-                                        onChange={set(s === 's1' ? 's1Start' : 's2Start')} />
-                                </div>
-                                <div className={styles.field}>
-                                    <label>Fin</label>
-                                    <input type="date"
-                                        value={s === 's1' ? form.s1End : form.s2End}
-                                        onChange={set(s === 's1' ? 's1End' : 's2End')} />
-                                </div>
+                                {(['Start', 'End'] as const).map(part => {
+                                    const key = `${s}${part}` as FK;
+                                    const val  = form[key];
+                                    return (
+                                        <div key={part} className={styles.field}>
+                                            <label>{part === 'Start' ? 'Inicio' : 'Fin'}</label>
+                                            <div className={styles.datePartsRow}>
+                                                <select className={styles.monthSelect}
+                                                    value={val.month} onChange={setField(key, 'month')}>
+                                                    <option value="">Mes</option>
+                                                    {MONTH_NAMES.map((m, i) => (
+                                                        <option key={i} value={String(i + 1)}>{m}</option>
+                                                    ))}
+                                                </select>
+                                                <input className={styles.dayInput}
+                                                    type="number" min="1" max="31" placeholder="Día"
+                                                    value={val.day} onChange={setField(key, 'day')} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     ))}
                 </div>
                 <div className={styles.modalFooter}>
                     <button className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                    <button className={styles.saveBtn} onClick={() => { onSave(form); onClose(); }}>
+                    <button className={styles.saveBtn} onClick={() => {
+                        onSave({
+                            s1Start: buildFullDate(asigYear, form.s1Start),
+                            s1End:   buildFullDate(asigYear, form.s1End),
+                            s2Start: buildFullDate(asigYear, form.s2Start),
+                            s2End:   buildFullDate(asigYear, form.s2End),
+                        });
+                        onClose();
+                    }}>
                         Guardar
                     </button>
                 </div>
@@ -265,6 +299,11 @@ export function AsistenciaPage() {
         c.type === 'day' ? `${c.semId}-${c.monthKey}-${c.weekDate}` : `sp-${c.semId}-${(c as {monthKey?:string}).monthKey ?? ''}`
     );
 
+    // Index of the first S2 column in the flat displayCols array (for the divider line)
+    const firstS2ColIdx = displayCols.findIndex(c => c.semId === 's2');
+    const firstS2Row2   = row2.findIndex(g => g.first.semId === 's2');
+    const firstS2Row3   = row3.findIndex(g => g.first.semId === 's2');
+
     // ── Totals (all recorded weeks, ignoring collapse state) ─────────────────
     function totals(estId: string) {
         let P = 0, I = 0, T = 0, J = 0, tot = 0;
@@ -300,14 +339,17 @@ export function AsistenciaPage() {
                     </div>
                     <div className={styles.infoFieldWide}>
                         <span className={styles.infoLabel}>Curso</span>
-                        <select className={styles.cursoSelect} value={asigId}
-                            onChange={e => setSelectedAsigId(e.target.value)}>
-                            {asignaturas.map(a => (
-                                <option key={a.id} value={a.id}>
-                                    {a.nombre} · Grupo {a.grupo} · Sección {a.seccion}
-                                </option>
-                            ))}
-                        </select>
+                        <div className={styles.asigSelectWrap}>
+                            <span className={styles.asigSelectDisplay}>{asig?.nombre ?? ''}</span>
+                            <select className={styles.asigSelectNative} value={asigId}
+                                onChange={e => setSelectedAsigId(e.target.value)}>
+                                {asignaturas.map(a => (
+                                    <option key={a.id} value={a.id}>
+                                        {a.nombre} · Grupo {a.grupo} · Sección {a.seccion}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div className={styles.infoFieldSm}>
                         <span className={styles.infoLabel}>Grupo</span>
@@ -318,9 +360,9 @@ export function AsistenciaPage() {
                         <span className={styles.infoValue}>{asig?.seccion || '—'}</span>
                     </div>
                     <div className={styles.infoActions}>
-                        <button className={styles.configBtn} onClick={() => setShowConfig(true)}>
-                            ⚙ Semestres
-                        </button>
+                        <Link to="/app/configuracion" className={styles.configBtn}>
+                            ⚙ Configuración
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -329,9 +371,9 @@ export function AsistenciaPage() {
             {!hasCfg && (
                 <div className={styles.notice}>
                     <span>Configure las fechas de inicio y fin de cada semestre para generar las semanas automáticamente.</span>
-                    <button className={styles.configBtn} onClick={() => setShowConfig(true)}>
+                    <Link to="/app/configuracion" className={styles.configBtn}>
                         ⚙ Configurar ahora
-                    </button>
+                    </Link>
                 </div>
             )}
 
@@ -355,9 +397,9 @@ export function AsistenciaPage() {
                                     const isColl = collapsedSems.has(g.k);
                                     return (
                                         <th key={g.k} colSpan={g.count}
-                                            className={`${styles.th} ${styles.thSem} ${isColl ? styles.thSemColl : ''}`}>
+                                            className={`${styles.th} ${styles.thSem} ${isColl ? styles.thSemColl : ''} ${g.k === 's2' && firstS2ColIdx >= 0 ? styles.semSplit : ''}`}>
                                             <button className={styles.collapseBtn} onClick={() => toggleSem(g.k)}>
-                                                {isColl ? '▶' : '▼'}
+                                                {isColl ? '+' : '−'}
                                             </button>
                                             {sg?.label ?? g.k}
                                             {sg && !isColl && sg.startDate && (
@@ -368,26 +410,28 @@ export function AsistenciaPage() {
                                         </th>
                                     );
                                 })}
-                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumP}`}   rowSpan={4}>P</th>
-                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumPct}`} rowSpan={4}>%</th>
-                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumI}`}   rowSpan={4}>F</th>
-                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumT}`}   rowSpan={4}>T</th>
-                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumJ}`}   rowSpan={4}>J</th>
+                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumP}`}   rowSpan={4}>Presentes</th>
+                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumPct}`} rowSpan={4}>% Asist.</th>
+                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumI}`}   rowSpan={4}>Ausencias</th>
+                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumT}`}   rowSpan={4}>Tardías</th>
+                                <th className={`${styles.th} ${styles.thSum} ${styles.thSumJ}`}   rowSpan={4}>Justificadas</th>
                             </tr>
 
                             {/* Row 2 — Month headers */}
                             <tr>
                                 {row2.map((g, gi) => {
                                     const col = g.first;
-                                    if (col.type === 'sem-c') return <th key={gi} className={styles.th} />;
+                                    const isSplit = firstS2ColIdx >= 0 && gi === firstS2Row2;
+                                    const splitCls = isSplit ? styles.semSplit : '';
+                                    if (col.type === 'sem-c') return <th key={gi} className={`${styles.th} ${splitCls}`} />;
                                     const semId = col.semId;
                                     if (col.type === 'month-c') {
                                         const mKey = `${semId}-${col.monthKey}`;
                                         const mLabel = semGroups.find(s => s.semId === semId)?.months.find(m => m.key === col.monthKey)?.label ?? '';
                                         return (
                                             <th key={gi} colSpan={g.count}
-                                                className={`${styles.th} ${styles.thMonth} ${styles.thMonthColl}`}>
-                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>▶</button>
+                                                className={`${styles.th} ${styles.thMonth} ${styles.thMonthColl} ${splitCls}`}>
+                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>+</button>
                                                 {mLabel}
                                             </th>
                                         );
@@ -397,13 +441,13 @@ export function AsistenciaPage() {
                                         const mLabel = semGroups.find(s => s.semId === semId)?.months.find(m => m.key === col.monthKey)?.label ?? '';
                                         return (
                                             <th key={gi} colSpan={g.count}
-                                                className={`${styles.th} ${styles.thMonth}`}>
-                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>▼</button>
+                                                className={`${styles.th} ${styles.thMonth} ${splitCls}`}>
+                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>−</button>
                                                 {mLabel}
                                             </th>
                                         );
                                     }
-                                    return <th key={gi} className={styles.th} />;
+                                    return <th key={gi} className={`${styles.th} ${splitCls}`} />;
                                 })}
                             </tr>
 
@@ -411,10 +455,12 @@ export function AsistenciaPage() {
                             <tr>
                                 {row3.map((g, gi) => {
                                     const col = g.first;
-                                    if (col.type !== 'day') return <th key={gi} className={styles.th} />;
+                                    const isSplit = firstS2ColIdx >= 0 && gi === firstS2Row3;
+                                    const splitCls = isSplit ? styles.semSplit : '';
+                                    if (col.type !== 'day') return <th key={gi} className={`${styles.th} ${splitCls}`} />;
                                     return (
-                                        <th key={gi} colSpan={5} className={`${styles.th} ${styles.thWeek}`}>
-                                            SEM{col.weekIdx}
+                                        <th key={gi} colSpan={5} className={`${styles.th} ${styles.thWeek} ${splitCls}`}>
+                                            Semana {col.weekIdx}
                                         </th>
                                     );
                                 })}
@@ -423,9 +469,10 @@ export function AsistenciaPage() {
                             {/* Row 4 — Day labels + dates */}
                             <tr>
                                 {displayCols.map((col, ci) => {
-                                    if (col.type !== 'day') return <th key={ci} className={styles.th} />;
+                                    const splitCls = firstS2ColIdx >= 0 && ci === firstS2ColIdx ? styles.semSplit : '';
+                                    if (col.type !== 'day') return <th key={ci} className={`${styles.th} ${splitCls}`} />;
                                     return (
-                                        <th key={ci} className={styles.thDay}>
+                                        <th key={ci} className={`${styles.thDay} ${splitCls}`}>
                                             <div className={styles.dayLabel}>{col.dayLabel}</div>
                                             <div className={styles.dayDate}>{fmtDay(col.date)}</div>
                                         </th>
@@ -442,23 +489,23 @@ export function AsistenciaPage() {
                                         <td className={`${styles.td} ${styles.tdNum}`}>{idx + 1}</td>
                                         <td className={`${styles.td} ${styles.tdName}`}>{est.nombre_completo}</td>
                                         {displayCols.map((col, ci) => {
-                                            if (col.type !== 'day') return <td key={ci} className={styles.tdSpacer} />;
+                                            const splitCls = firstS2ColIdx >= 0 && ci === firstS2ColIdx ? styles.semSplit : '';
+                                            if (col.type !== 'day') return <td key={ci} className={`${styles.tdSpacer} ${splitCls}`} />;
                                             const semanaId = semanaByKey.get(`${col.semestre}-${col.weekDate}`);
                                             const dia      = semanaId ? diaMap.get(semanaId)?.get(est.id) : null;
                                             const estado   = dia?.[col.dayKey] ?? null;
                                             return (
                                                 <td key={ci}
-                                                    className={`${styles.cell} ${getCellMod(estado)}`}
+                                                    className={`${styles.cell} ${getCellMod(estado)} ${splitCls}`}
                                                     onClick={() => updateDia(col.weekDate, est.id, col.dayKey, cycleEstado(estado))}>
-                                                    {getCellContent(estado)}
                                                 </td>
                                             );
                                         })}
-                                        <td className={`${styles.sumTd} ${styles.sumTdP}`}>{t.P || ''}</td>
-                                        <td className={`${styles.sumTd} ${styles.sumTdPct}`}>{t.pct !== null ? `${t.pct}%` : '—'}</td>
-                                        <td className={`${styles.sumTd} ${styles.sumTdI}`}>{t.I || ''}</td>
-                                        <td className={`${styles.sumTd} ${styles.sumTdT}`}>{t.T || ''}</td>
-                                        <td className={`${styles.sumTd} ${styles.sumTdJ}`}>{t.J || ''}</td>
+                                        <td className={`${styles.sumTd} ${styles.sumTdP}`}   title={est.nombre_completo}>{t.P || ''}</td>
+                                        <td className={`${styles.sumTd} ${styles.sumTdPct}`} title={est.nombre_completo}>{t.pct !== null ? `${t.pct}%` : '—'}</td>
+                                        <td className={`${styles.sumTd} ${styles.sumTdI}`}   title={est.nombre_completo}>{t.I || ''}</td>
+                                        <td className={`${styles.sumTd} ${styles.sumTdT}`}   title={est.nombre_completo}>{t.T || ''}</td>
+                                        <td className={`${styles.sumTd} ${styles.sumTdJ}`}   title={est.nombre_completo}>{t.J || ''}</td>
                                     </tr>
                                 );
                             })}
@@ -468,14 +515,6 @@ export function AsistenciaPage() {
                 </div>
             )}
 
-            {/* ── Config Modal ──────────────────────────────────────────────── */}
-            {showConfig && (
-                <SemConfigModal
-                    cfg={semConfig}
-                    onSave={saveGlobalConfig}
-                    onClose={() => setShowConfig(false)}
-                />
-            )}
         </div>
     );
 }

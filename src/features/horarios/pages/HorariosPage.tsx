@@ -3,6 +3,9 @@ import { useHorariosStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore } from "../../institution/store";
 import type { ScheduleEntry, Break, DragState, DragPayload } from "../types";
+import { SearchInput } from "../../../shared/ui/SearchInput";
+import { Modal } from "../../../shared/ui/Modal";
+import { FormField } from "../../../shared/ui/FormField";
 import styles from "../HorariosPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -37,17 +40,6 @@ const slotToTime = (slot: number): string => {
     return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 };
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
-const SearchIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-);
-const CloseIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>
-);
 
 // ─── Break Modal ──────────────────────────────────────────────────────────────
 function BreakModal({ onSave, onClose }: {
@@ -71,65 +63,57 @@ function BreakModal({ onSave, onClose }: {
     const endSlot   = Math.min(SLOT_COUNT - 1, startSlot + durationSlots - 1);
     const endTime   = TIME_SLOTS[Math.min(endSlot + 1, SLOT_COUNT - 1)] ?? TIME_SLOTS[SLOT_COUNT - 1];
 
+    const footer = (
+        <>
+            <button className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button className={styles.saveBtn} disabled={!valid}
+                onClick={() => valid && onSave({ nombre, startSlot, durationSlots, days })}>
+                Añadir break
+            </button>
+        </>
+    );
+
     return (
-        <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>Nuevo break</span>
-                    <button className={styles.closeBtn} onClick={onClose}><CloseIcon /></button>
+        <Modal open onClose={onClose} title="Nuevo break" footer={footer}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+                <FormField label="Tipo">
+                    <select className={styles.formInput} value={preset} onChange={(e) => setPreset(e.target.value)}>
+                        {BREAK_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                </FormField>
+                {preset === "Personalizado" && (
+                    <FormField label="Nombre">
+                        <input className={styles.formInput} type="text" value={custom} onChange={(e) => setCustom(e.target.value)}
+                            placeholder="Ej: Tutoría" autoFocus />
+                    </FormField>
+                )}
+                <div className={styles.row2}>
+                    <FormField label="Hora de inicio">
+                        <input className={styles.formInput} type="time" min="07:00" max="16:50" step="600"
+                            value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                    </FormField>
+                    <FormField label="Duración (min)">
+                        <input className={styles.formInput} type="number" min={1} max={240}
+                            value={minutes || ""} onChange={(e) => setMinutes(Number(e.target.value))} />
+                    </FormField>
                 </div>
-                <div className={styles.modalBody}>
-                    <div className={styles.field}>
-                        <label>Tipo</label>
-                        <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-                            {BREAK_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
+                <FormField label="Días">
+                    <div className={styles.dayToggleRow}>
+                        {DAY_SHORT.map((lbl, i) => (
+                            <button key={i} type="button"
+                                className={`${styles.dayToggle}${days.includes(i) ? ` ${styles.dayToggleOn}` : ""}`}
+                                onClick={() => toggleDay(i)}>{lbl}</button>
+                        ))}
                     </div>
-                    {preset === "Personalizado" && (
-                        <div className={styles.field}>
-                            <label>Nombre</label>
-                            <input type="text" value={custom} onChange={(e) => setCustom(e.target.value)}
-                                placeholder="Ej: Tutoría" autoFocus />
-                        </div>
-                    )}
-                    <div className={styles.row2}>
-                        <div className={styles.field}>
-                            <label>Hora de inicio</label>
-                            <input type="time" min="07:00" max="16:50" step="600"
-                                value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                        </div>
-                        <div className={styles.field}>
-                            <label>Duración (min)</label>
-                            <input type="number" min={1} max={240}
-                                value={minutes || ""} onChange={(e) => setMinutes(Number(e.target.value))} />
-                        </div>
-                    </div>
-                    <div className={styles.field}>
-                        <label>Días</label>
-                        <div className={styles.dayToggleRow}>
-                            {DAY_SHORT.map((lbl, i) => (
-                                <button key={i} type="button"
-                                    className={`${styles.dayToggle}${days.includes(i) ? ` ${styles.dayToggleOn}` : ""}`}
-                                    onClick={() => toggleDay(i)}>{lbl}</button>
-                            ))}
-                        </div>
-                    </div>
-                    {valid && (
-                        <p className={styles.breakHint}>
-                            {durationSlots} bloque{durationSlots > 1 ? "s" : ""} de 10 min
-                            · {TIME_SLOTS[startSlot]} → {endTime}
-                        </p>
-                    )}
-                </div>
-                <div className={styles.modalFooter}>
-                    <button className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                    <button className={styles.saveBtn} disabled={!valid}
-                        onClick={() => valid && onSave({ nombre, startSlot, durationSlots, days })}>
-                        Añadir break
-                    </button>
-                </div>
+                </FormField>
+                {valid && (
+                    <p className={styles.breakHint}>
+                        {durationSlots} bloque{durationSlots > 1 ? "s" : ""} de 10 min
+                        · {TIME_SLOTS[startSlot]} → {endTime}
+                    </p>
+                )}
             </div>
-        </div>
+        </Modal>
     );
 }
 
@@ -296,12 +280,7 @@ export function HorariosPage() {
                 </div>
 
                 <div className={styles.panelToolbar}>
-                    <div className={styles.searchWrap}>
-                        <span className={styles.searchIcon}><SearchIcon /></span>
-                        <input className={styles.searchInput} type="text" placeholder="Buscar..."
-                            value={search} onChange={(e) => setSearch(e.target.value)} />
-                        {search && <button className={styles.clearSearch} onClick={() => setSearch("")}>×</button>}
-                    </div>
+                    <SearchInput value={search} onChange={setSearch} placeholder="Buscar..." />
                     <div className={styles.filterRow}>
                         <select className={styles.filterSelect} value={filterAño} onChange={(e) => setFilterAño(e.target.value)}>
                             <option value="">Año</option>

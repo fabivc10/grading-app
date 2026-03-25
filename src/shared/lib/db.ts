@@ -407,6 +407,58 @@ async function runMigrations(db: Database) {
         `);
         await db.execute("UPDATE schema_version SET version = 11 WHERE id = 1");
     }
+
+    // ── v12 — add semestre column to eval_entries ──────────────────────────────
+    if (version < 12) {
+        const entryDef12 = await db.select<{ sql: string }[]>(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='eval_entries'"
+        );
+        const hasSemestre = (entryDef12[0]?.sql ?? "").includes("semestre");
+        if (!hasSemestre) {
+            await db.execute(
+                "ALTER TABLE eval_entries ADD COLUMN semestre TEXT NOT NULL DEFAULT 's1'"
+            );
+        }
+        await db.execute("UPDATE schema_version SET version = 12 WHERE id = 1");
+    }
+
+    // ── v13 — seed demo eval entries for reports testing ──────────────────────
+    if (version < 13) {
+        await seedDemoEvalEntries(db);
+        await db.execute("UPDATE schema_version SET version = 13 WHERE id = 1");
+    }
+
+    // ── v14 — more demo data (more asignaturas, students, eval entries) ─────────
+    if (version < 14) {
+        await seedMoreDemoData(db);
+        await db.execute("UPDATE schema_version SET version = 14 WHERE id = 1");
+    }
+
+    // ── v15 — add nota_descripcion column to eval_temas ───────────────────────
+    if (version < 15) {
+        const cols = await db.select<{ name: string }[]>(
+            "PRAGMA table_info(eval_temas)"
+        );
+        if (!cols.some((c) => c.name === "nota_descripcion")) {
+            await db.execute(
+                "ALTER TABLE eval_temas ADD COLUMN nota_descripcion TEXT NOT NULL DEFAULT ''"
+            );
+        }
+        await db.execute("UPDATE schema_version SET version = 15 WHERE id = 1");
+    }
+
+    // ── v16 — add CR education fields to institutions ──────────────────────────
+    if (version < 16) {
+        const cols = await db.select<{ name: string }[]>("PRAGMA table_info(institutions)");
+        const names = cols.map((c) => c.name);
+        if (!names.includes("tipo_institucion"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN tipo_institucion TEXT");
+        if (!names.includes("direccion_regional"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN direccion_regional TEXT");
+        if (!names.includes("circuito"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN circuito TEXT");
+        await db.execute("UPDATE schema_version SET version = 16 WHERE id = 1");
+    }
 }
 
 // ─── Default user ─────────────────────────────────────────────────────────────
@@ -492,4 +544,485 @@ async function seedDemoData(db: Database) {
         ('g2',3,'Andrés Castillo',  '0-5678-9012','+503 7210-9876',16,'no_tiene')`);
     await db.execute(`INSERT INTO estudiante_asignaturas (estudiante_id, asignatura_id) VALUES
         ('g1','c1'),('g2','c1')`);
+}
+
+// ─── Demo eval entries (v13) ──────────────────────────────────────────────────
+async function seedDemoEvalEntries(db: Database) {
+    const check = await db.select<{ count: number }[]>(
+        `SELECT COUNT(*) as count FROM eval_entries ee
+         JOIN evaluaciones ev ON ev.id = ee.evaluacion_id
+         WHERE ev.institution_id = 1`
+    );
+    if (check[0].count > 0) return;
+
+    type Pair = { evalId: string; estId: string; asigId: string; nombre: string };
+    const pairs: Pair[] = [
+        { evalId: 'de_e1_a1', estId: 'e1', asigId: 'a1', nombre: 'Ana García López' },
+        { evalId: 'de_e2_a1', estId: 'e2', asigId: 'a1', nombre: 'Carlos Pérez Ramos' },
+        { evalId: 'de_e5_a1', estId: 'e5', asigId: 'a1', nombre: 'Sofía Hernández Cruz' },
+        { evalId: 'de_e1_a2', estId: 'e1', asigId: 'a2', nombre: 'Ana García López' },
+        { evalId: 'de_e3_a2', estId: 'e3', asigId: 'a2', nombre: 'María Santos Ruiz' },
+        { evalId: 'de_e5_a2', estId: 'e5', asigId: 'a2', nombre: 'Sofía Hernández Cruz' },
+    ];
+    for (const p of pairs) {
+        const row = await db.select<{ id: string }[]>(
+            "SELECT id FROM evaluaciones WHERE estudiante_id=? AND asignatura_id=?",
+            [p.estId, p.asigId]
+        );
+        if (row.length === 0) {
+            await db.execute(
+                "INSERT INTO evaluaciones (id,institution_id,asignatura_id,nombre,estudiante_id) VALUES (?,1,?,?,?)",
+                [p.evalId, p.asigId, p.nombre, p.estId]
+            );
+        } else {
+            p.evalId = row[0].id;
+        }
+    }
+
+    let seq = 0;
+    const sid = () => `se${++seq}`;
+
+    type ItemT = { nombre: string; desc: string; valor: number };
+    type TemaT = { tema: string; items: ItemT[] };
+    type EntryT = { category: string; nombre: string; semestre: string; temas: TemaT[] };
+
+    async function ins(evalId: string, templates: EntryT[], f: number) {
+        for (const t of templates) {
+            const entryId = sid();
+            const pct = t.temas.flatMap(tm => tm.items).reduce((s, i) => s + i.valor, 0);
+            await db.execute(
+                "INSERT INTO eval_entries (id,evaluacion_id,category,nombre,pct,semestre) VALUES (?,?,?,?,?,?)",
+                [entryId, evalId, t.category, t.nombre, pct, t.semestre]
+            );
+            for (const tm of t.temas) {
+                for (const i of tm.items) {
+                    await db.execute(
+                        "INSERT INTO eval_temas (id,entry_id,tema,nombre,descripcion,valor,nota) VALUES (?,?,?,?,?,?,?)",
+                        [sid(), entryId, tm.tema, i.nombre, i.desc, i.valor, Math.max(0, Math.round(i.valor * f))]
+                    );
+                }
+            }
+        }
+    }
+
+    // ── Matemáticas II (a1) templates ─────────────────────────────────────────
+    const a1: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Álgebra', items:[
+                { nombre:'Ecuaciones lineales', desc:'Resolución de ecuaciones de primer grado', valor:10 },
+                { nombre:'Factorización', desc:'Factorizar expresiones algebraicas', valor:5 },
+            ]},
+            { tema:'Geometría', items:[
+                { nombre:'Área de figuras planas', desc:'Cálculo de áreas de triángulos y rectángulos', valor:5 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Tarea 1', semestre:'s1', temas:[
+            { tema:'Ejercicios de álgebra', items:[
+                { nombre:'Sistemas de ecuaciones', desc:'Resolución de sistemas 2×2', valor:5 },
+                { nombre:'Inecuaciones', desc:'Resolución de inecuaciones lineales', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Participación S1', semestre:'s1', temas:[
+            { tema:'Actitud en clase', items:[
+                { nombre:'Participación oral', desc:'Resolución de problemas en pizarra', valor:5 },
+                { nombre:'Trabajo en equipo', desc:'Colaboración en actividades grupales', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'Estadística', items:[
+                { nombre:'Media y mediana', desc:'Medidas de tendencia central', valor:8 },
+                { nombre:'Moda y rango', desc:'Identificación de la moda', valor:4 },
+            ]},
+            { tema:'Probabilidad', items:[
+                { nombre:'Experimentos aleatorios', desc:'Espacio muestral y eventos', valor:8 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Proyecto Final', semestre:'s2', temas:[
+            { tema:'Investigación estadística', items:[
+                { nombre:'Planteamiento del problema', desc:'Definición del problema a investigar', valor:5 },
+                { nombre:'Recopilación de datos', desc:'Métodos de recolección y organización', valor:5 },
+                { nombre:'Análisis y conclusiones', desc:'Interpretación de resultados', valor:5 },
+            ]},
+        ]},
+    ];
+
+    // ── Ciencias Naturales (a2) templates ─────────────────────────────────────
+    const a2: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Ecosistemas', items:[
+                { nombre:'Cadena alimentaria', desc:'Productores, consumidores y descomponedores', valor:8 },
+                { nombre:'Biomas del mundo', desc:'Características de los principales biomas', valor:6 },
+            ]},
+            { tema:'Células', items:[
+                { nombre:'Estructura celular', desc:'Partes de la célula animal y vegetal', valor:6 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Tarea 1', semestre:'s1', temas:[
+            { tema:'Biología celular', items:[
+                { nombre:'Diagrama de célula', desc:'Dibujo y etiquetado de la célula', valor:5 },
+                { nombre:'Comparación célula animal/vegetal', desc:'Tabla comparativa', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Trabajo de Laboratorio S1', semestre:'s1', temas:[
+            { tema:'Laboratorio', items:[
+                { nombre:'Observación microscópica', desc:'Uso correcto del microscopio', valor:5 },
+                { nombre:'Informe de laboratorio', desc:'Redacción de conclusiones', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'El cuerpo humano', items:[
+                { nombre:'Sistema respiratorio', desc:'Órganos y función del sistema respiratorio', valor:8 },
+                { nombre:'Sistema circulatorio', desc:'Estructura del corazón y circulación', valor:6 },
+            ]},
+            { tema:'Genética básica', items:[
+                { nombre:'Leyes de Mendel', desc:'Primera y segunda ley de Mendel', valor:6 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Proyecto de Ciencias', semestre:'s2', temas:[
+            { tema:'Experimento científico', items:[
+                { nombre:'Hipótesis y metodología', desc:'Planteamiento y diseño del experimento', valor:5 },
+                { nombre:'Ejecución del experimento', desc:'Aplicación del método científico', valor:5 },
+                { nombre:'Presentación oral', desc:'Exposición de resultados ante la clase', valor:5 },
+            ]},
+        ]},
+    ];
+
+    // score ≈ 20 + factor*80  →  1.0=100%, 0.90=92%, 0.80=84%, 0.65=72%, 0.50=60%, 0.38=50%
+    await ins(pairs[0].evalId, a1, 0.90); // Ana   a1 — eximido  (~92%)
+    await ins(pairs[1].evalId, a1, 0.50); // Carlos a1 — reprobado (~60%)
+    await ins(pairs[2].evalId, a1, 1.00); // Sofía  a1 — 100%
+    await ins(pairs[3].evalId, a2, 0.80); // Ana   a2 — aprobado (~84%)
+    await ins(pairs[4].evalId, a2, 0.38); // María  a2 — reprobado (~50%)
+    await ins(pairs[5].evalId, a2, 1.00); // Sofía  a2 — 100%
+}
+
+async function seedMoreDemoData(db: Database) {
+    // ── New INC asignaturas ────────────────────────────────────────────────────
+    await db.execute(`INSERT OR IGNORE INTO asignaturas (id,institution_id,año,nombre,grupo,seccion,lecciones) VALUES
+        ('a4',1,2025,'Lengua y Literatura','7','1',30),
+        ('a5',1,2025,'Ciencias Sociales','8','2',24),
+        ('a6',1,2025,'Inglés I','9','1',28)`);
+
+    // ── New INC students ──────────────────────────────────────────────────────
+    await db.execute(`INSERT OR IGNORE INTO estudiantes (id,institution_id,nombre_completo,edad,adecuacion) VALUES
+        ('h1',1,'Pedro Jiménez Mora',16,'no_tiene'),
+        ('h2',1,'Fernanda López Díaz',17,'acceso'),
+        ('h3',1,'José Antonio Vargas',16,'no_tiene'),
+        ('h4',1,'Lucía Ramírez Castro',15,'no_significativa'),
+        ('h5',1,'Miguel Ángel Torres',17,'no_tiene'),
+        ('h6',1,'Carmen Beatriz Fuentes',16,'no_tiene'),
+        ('h7',1,'Rodrigo Estrada Mejía',17,'no_tiene')`);
+
+    // ── Enrollments ────────────────────────────────────────────────────────────
+    const newEnrolls: [string, string][] = [
+        ['h1','a4'],['h2','a4'],['h3','a4'],['e1','a4'],
+        ['h4','a5'],['h5','a5'],['h6','a5'],['e2','a5'],
+        ['h7','a6'],['h1','a6'],['h4','a6'],['e3','a6'],
+    ];
+    for (const [est, asig] of newEnrolls) {
+        await db.execute(
+            "INSERT OR IGNORE INTO estudiante_asignaturas (estudiante_id,asignatura_id) VALUES (?,?)",
+            [est, asig]
+        );
+    }
+
+    // ── Eval entries ───────────────────────────────────────────────────────────
+    // Check if already seeded (eval_entries exist for a3/a4/a5/a6)
+    const existing = await db.select<{ count: number }[]>(
+        `SELECT COUNT(*) as count FROM eval_entries ee
+         JOIN evaluaciones ev ON ev.id = ee.evaluacion_id
+         WHERE ev.asignatura_id IN ('a3','a4','a5','a6')`
+    );
+    if (existing[0].count > 0) return;
+
+    // Ensure evaluaciones rows exist for each new pair
+    type Pair = { evalId: string; estId: string; asigId: string; nombre: string };
+    const pairs: Pair[] = [
+        // a3 — Historia Universal
+        { evalId:'de_e3_a3', estId:'e3', asigId:'a3', nombre:'María Santos Ruiz' },
+        { evalId:'de_e4_a3', estId:'e4', asigId:'a3', nombre:'Luis Martínez Vega' },
+        // a4 — Lengua y Literatura
+        { evalId:'de_h1_a4', estId:'h1', asigId:'a4', nombre:'Pedro Jiménez Mora' },
+        { evalId:'de_h2_a4', estId:'h2', asigId:'a4', nombre:'Fernanda López Díaz' },
+        { evalId:'de_h3_a4', estId:'h3', asigId:'a4', nombre:'José Antonio Vargas' },
+        { evalId:'de_e1_a4', estId:'e1', asigId:'a4', nombre:'Ana García López' },
+        // a5 — Ciencias Sociales
+        { evalId:'de_h4_a5', estId:'h4', asigId:'a5', nombre:'Lucía Ramírez Castro' },
+        { evalId:'de_h5_a5', estId:'h5', asigId:'a5', nombre:'Miguel Ángel Torres' },
+        { evalId:'de_h6_a5', estId:'h6', asigId:'a5', nombre:'Carmen Beatriz Fuentes' },
+        { evalId:'de_e2_a5', estId:'e2', asigId:'a5', nombre:'Carlos Pérez Ramos' },
+        // a6 — Inglés I
+        { evalId:'de_h7_a6', estId:'h7', asigId:'a6', nombre:'Rodrigo Estrada Mejía' },
+        { evalId:'de_h1_a6', estId:'h1', asigId:'a6', nombre:'Pedro Jiménez Mora' },
+        { evalId:'de_h4_a6', estId:'h4', asigId:'a6', nombre:'Lucía Ramírez Castro' },
+        { evalId:'de_e3_a6', estId:'e3', asigId:'a6', nombre:'María Santos Ruiz' },
+    ];
+    for (const p of pairs) {
+        const row = await db.select<{ id: string }[]>(
+            "SELECT id FROM evaluaciones WHERE estudiante_id=? AND asignatura_id=?",
+            [p.estId, p.asigId]
+        );
+        if (row.length === 0) {
+            await db.execute(
+                "INSERT INTO evaluaciones (id,institution_id,asignatura_id,nombre,estudiante_id) VALUES (?,1,?,?,?)",
+                [p.evalId, p.asigId, p.nombre, p.estId]
+            );
+        } else {
+            p.evalId = row[0].id;
+        }
+    }
+
+    let sq = 0;
+    const sid = () => `sv${++sq}`;
+
+    type ItemT = { nombre: string; desc: string; valor: number };
+    type TemaT = { tema: string; items: ItemT[] };
+    type EntryT = { category: string; nombre: string; semestre: string; temas: TemaT[] };
+
+    async function insertTemplates(evalId: string, templates: EntryT[], factor: number) {
+        for (const t of templates) {
+            const entryId = sid();
+            const pct = t.temas.flatMap(tm => tm.items).reduce((s, i) => s + i.valor, 0);
+            await db.execute(
+                "INSERT INTO eval_entries (id,evaluacion_id,category,nombre,pct,semestre) VALUES (?,?,?,?,?,?)",
+                [entryId, evalId, t.category, t.nombre, pct, t.semestre]
+            );
+            for (const tm of t.temas) {
+                for (const i of tm.items) {
+                    await db.execute(
+                        "INSERT INTO eval_temas (id,entry_id,tema,nombre,descripcion,valor,nota) VALUES (?,?,?,?,?,?,?)",
+                        [sid(), entryId, tm.tema, i.nombre, i.desc, i.valor, Math.max(0, Math.round(i.valor * factor))]
+                    );
+                }
+            }
+        }
+    }
+
+    // ── Templates ─────────────────────────────────────────────────────────────
+    const a3Templates: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Antigua Grecia', items:[
+                { nombre:'Democracia ateniense', desc:'Origen y características de la democracia griega', valor:8 },
+                { nombre:'Cultura y filosofía', desc:'Principales filósofos y su legado', valor:6 },
+            ]},
+            { tema:'Roma Antigua', items:[
+                { nombre:'La República romana', desc:'Instituciones y magistraturas', valor:6 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Tarea 1', semestre:'s1', temas:[
+            { tema:'Línea del tiempo', items:[
+                { nombre:'Organización cronológica', desc:'Ubicación de eventos en el tiempo', valor:5 },
+                { nombre:'Descripción de eventos', desc:'Síntesis de hitos históricos', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Participación S1', semestre:'s1', temas:[
+            { tema:'Clases participativas', items:[
+                { nombre:'Debate histórico', desc:'Argumentación basada en evidencia', valor:5 },
+                { nombre:'Análisis de fuentes', desc:'Lectura crítica de documentos históricos', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'Edad Media', items:[
+                { nombre:'El feudalismo', desc:'Estructura social y económica feudal', valor:8 },
+                { nombre:'Las Cruzadas', desc:'Causas y consecuencias de las Cruzadas', valor:6 },
+            ]},
+            { tema:'Renacimiento', items:[
+                { nombre:'Arte y ciencia renacentistas', desc:'Principales figuras y obras del Renacimiento', valor:6 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Proyecto Histórico', semestre:'s2', temas:[
+            { tema:'Investigación histórica', items:[
+                { nombre:'Selección de fuentes', desc:'Identificación de fuentes primarias y secundarias', valor:5 },
+                { nombre:'Análisis crítico', desc:'Interpretación y contextualización de la información', valor:5 },
+                { nombre:'Presentación escrita', desc:'Redacción clara y estructurada del trabajo', valor:5 },
+            ]},
+        ]},
+    ];
+
+    const a4Templates: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Narrativa', items:[
+                { nombre:'Estructura del cuento', desc:'Identificar inicio, nudo y desenlace', valor:10 },
+                { nombre:'Análisis de personajes', desc:'Clasificación y caracterización de personajes', valor:5 },
+            ]},
+            { tema:'Gramática', items:[
+                { nombre:'Ortografía y puntuación', desc:'Uso correcto de tildes y signos de puntuación', valor:5 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Tarea 1', semestre:'s1', temas:[
+            { tema:'Redacción creativa', items:[
+                { nombre:'Coherencia y cohesión', desc:'Uso adecuado de conectores y referencia', valor:5 },
+                { nombre:'Riqueza vocabular', desc:'Uso de sinónimos y vocabulario variado', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Lectura en clase S1', semestre:'s1', temas:[
+            { tema:'Comprensión lectora', items:[
+                { nombre:'Lectura expresiva', desc:'Entonación y ritmo en la lectura oral', valor:5 },
+                { nombre:'Comprensión del texto', desc:'Respuesta a preguntas sobre el texto leído', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'Poesía', items:[
+                { nombre:'Figuras literarias', desc:'Identificación de metáfora, símil y personificación', valor:8 },
+                { nombre:'Análisis de poema', desc:'Métrica, rima y contenido', valor:6 },
+            ]},
+            { tema:'Ensayo', items:[
+                { nombre:'Estructura del ensayo', desc:'Introducción, desarrollo y conclusión', valor:6 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Antología literaria', semestre:'s2', temas:[
+            { tema:'Proyecto de escritura', items:[
+                { nombre:'Selección de textos', desc:'Criterios de selección y justificación', valor:5 },
+                { nombre:'Análisis crítico', desc:'Comentario literario de cada texto', valor:5 },
+                { nombre:'Presentación final', desc:'Diseño, orden y presentación oral', valor:5 },
+            ]},
+        ]},
+    ];
+
+    const a5Templates: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Historia de América', items:[
+                { nombre:'La Conquista', desc:'Proceso de conquista española en América', valor:8 },
+                { nombre:'Culturas precolombinas', desc:'Principales civilizaciones mayas, aztecas e incas', valor:6 },
+            ]},
+            { tema:'Geografía física', items:[
+                { nombre:'Relieve centroamericano', desc:'Principales cordilleras, volcanes y costas', valor:6 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Tarea 1', semestre:'s1', temas:[
+            { tema:'Síntesis conceptual', items:[
+                { nombre:'Mapa conceptual', desc:'Organización jerárquica de conceptos', valor:5 },
+                { nombre:'Cuadro comparativo', desc:'Comparación de civilizaciones precolombinas', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Exposición oral S1', semestre:'s1', temas:[
+            { tema:'Comunicación oral', items:[
+                { nombre:'Dominio del tema', desc:'Manejo conceptual del contenido expuesto', valor:5 },
+                { nombre:'Expresión y postura', desc:'Claridad, volumen y lenguaje no verbal', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'Economía', items:[
+                { nombre:'Sectores económicos', desc:'Primario, secundario y terciario', valor:8 },
+                { nombre:'Comercio exterior', desc:'Importaciones, exportaciones y balanza comercial', valor:6 },
+            ]},
+            { tema:'Educación cívica', items:[
+                { nombre:'Derechos humanos', desc:'Declaración Universal y aplicación local', valor:6 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Investigación social', semestre:'s2', temas:[
+            { tema:'Metodología de investigación', items:[
+                { nombre:'Marco teórico', desc:'Revisión bibliográfica y conceptualización', valor:5 },
+                { nombre:'Análisis de datos', desc:'Interpretación de estadísticas sociales', valor:5 },
+                { nombre:'Conclusiones y recomendaciones', desc:'Síntesis y propuestas de mejora', valor:5 },
+            ]},
+        ]},
+    ];
+
+    const a6Templates: EntryT[] = [
+        { category:'prueba', nombre:'Prueba 1', semestre:'s1', temas:[
+            { tema:'Grammar', items:[
+                { nombre:'Simple Present', desc:'Affirmative, negative and interrogative forms', valor:8 },
+                { nombre:'Articles and determiners', desc:'Definite and indefinite articles', valor:6 },
+            ]},
+            { tema:'Vocabulary', items:[
+                { nombre:'Family and home', desc:'Vocabulary related to family members and rooms', valor:6 },
+            ]},
+        ]},
+        { category:'tareas', nombre:'Written Composition', semestre:'s1', temas:[
+            { tema:'Writing skills', items:[
+                { nombre:'Text organization', desc:'Introduction, body and conclusion', valor:5 },
+                { nombre:'Grammar accuracy', desc:'Correct use of studied structures', valor:5 },
+            ]},
+        ]},
+        { category:'cotidiano', nombre:'Oral Practice S1', semestre:'s1', temas:[
+            { tema:'Speaking', items:[
+                { nombre:'Pronunciation', desc:'Correct pronunciation of vowel and consonant sounds', valor:5 },
+                { nombre:'Fluency', desc:'Ability to communicate ideas without long pauses', valor:5 },
+            ]},
+        ]},
+        { category:'prueba', nombre:'Prueba 2', semestre:'s2', temas:[
+            { tema:'Grammar', items:[
+                { nombre:'Simple Past', desc:'Regular and irregular verbs in past tense', valor:8 },
+                { nombre:'Modal verbs', desc:'Can, could, should, must usage', valor:6 },
+            ]},
+            { tema:'Reading', items:[
+                { nombre:'Reading comprehension', desc:'Main idea, details and inference from texts', valor:6 },
+            ]},
+        ]},
+        { category:'proyecto', nombre:'Oral Presentation', semestre:'s2', temas:[
+            { tema:'Oral project', items:[
+                { nombre:'Content and organization', desc:'Clear structure and relevant information', valor:5 },
+                { nombre:'Delivery', desc:'Eye contact, pace and confidence', valor:5 },
+                { nombre:'Language use', desc:'Vocabulary and grammar accuracy during presentation', valor:5 },
+            ]},
+        ]},
+    ];
+
+    // ── Per-student factors: [s1 factor, s2 factor] ───────────────────────────
+    const factors: Record<string, [number, number]> = {
+        // a3 history
+        e3: [0.47, 0.43],
+        e4: [0.72, 0.70],
+        // a4 language
+        h1: [0.83, 0.80],
+        h2: [0.95, 0.93],
+        h3: [0.66, 0.64],
+        e1: [0.88, 0.86],
+        // a5 social
+        h4: [0.50, 0.48],
+        h5: [0.84, 0.82],
+        h6: [0.73, 0.71],
+        e2: [0.65, 0.63],
+        // a6 english
+        h7: [0.92, 0.90],
+        // h1 reused for a6
+        // h4 reused for a6
+        // e3 reused for a6
+    };
+    // override a6-specific factors (h1, h4, e3 appear in multiple subjects with different performance)
+    const a6Factors: Record<string, [number, number]> = {
+        h7: [0.92, 0.90],
+        h1: [0.78, 0.75],
+        h4: [0.49, 0.46],
+        e3: [0.42, 0.39],
+    };
+
+    // Apply templates per subject
+    const subjectData: { asigId: string; templates: EntryT[]; pairIds: { estId: string; evalId: string }[]; facMap: Record<string, [number, number]> }[] = [
+        {
+            asigId: 'a3',
+            templates: a3Templates,
+            pairIds: pairs.filter(p => p.asigId === 'a3').map(p => ({ estId: p.estId, evalId: p.evalId })),
+            facMap: factors,
+        },
+        {
+            asigId: 'a4',
+            templates: a4Templates,
+            pairIds: pairs.filter(p => p.asigId === 'a4').map(p => ({ estId: p.estId, evalId: p.evalId })),
+            facMap: factors,
+        },
+        {
+            asigId: 'a5',
+            templates: a5Templates,
+            pairIds: pairs.filter(p => p.asigId === 'a5').map(p => ({ estId: p.estId, evalId: p.evalId })),
+            facMap: factors,
+        },
+        {
+            asigId: 'a6',
+            templates: a6Templates,
+            pairIds: pairs.filter(p => p.asigId === 'a6').map(p => ({ estId: p.estId, evalId: p.evalId })),
+            facMap: a6Factors,
+        },
+    ];
+
+    for (const subj of subjectData) {
+        for (const { estId, evalId } of subj.pairIds) {
+            const [f1, f2] = subj.facMap[estId] ?? [0.7, 0.7];
+            const s1Templates = subj.templates.filter(t => t.semestre === 's1');
+            const s2Templates = subj.templates.filter(t => t.semestre === 's2');
+            await insertTemplates(evalId, s1Templates, f1);
+            await insertTemplates(evalId, s2Templates, f2);
+        }
+    }
 }

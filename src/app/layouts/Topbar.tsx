@@ -1,23 +1,26 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../features/auth/store";
 import { useThemeStore } from "../../features/theme/store";
-import { BellIcon, UserIcon, SettingsIcon, LogOutIcon, SunIcon, MoonIcon } from "../../shared/ui/icons";
+import { useNotificationsStore, type NotifPriority } from "../../features/notifications/store";
+import { BellIcon, CheckIcon, TrashIcon, UserIcon, SettingsIcon, LogOutIcon, SunIcon, MoonIcon } from "../../shared/ui/icons";
 import styles from "./Topbar.module.css";
 
-const MOCK_NOTIFS = [
-    { id: 1, text: "Nueva evaluación asignada en Matemáticas II", time: "hace 5 min",  unread: true },
-    { id: 2, text: "Carlos Pérez subió su tarea pendiente",       time: "hace 20 min", unread: true },
-    { id: 3, text: "Horario actualizado para el martes",          time: "hace 1 h",    unread: false },
-    { id: 4, text: "Recordatorio: calificaciones por entregar",   time: "ayer",        unread: false },
-];
-
 const TITLES: Record<string, string> = {
-    "/app":              "Asignaturas",
-    "/app/estudiantes":  "Estudiantes",
-    "/app/reportes":     "Reportes",
-    "/app/horarios":     "Horarios",
-    "/app/evaluaciones": "Evaluaciones",
+    "/app":               "Asignaturas",
+    "/app/estudiantes":   "Estudiantes",
+    "/app/reportes":      "Reportes",
+    "/app/horarios":      "Horarios",
+    "/app/evaluaciones":  "Evaluaciones",
+    "/app/asistencia":    "Asistencia",
+    "/app/configuracion": "Configuración",
+};
+
+const PRIORITY_LABEL: Record<NotifPriority, string> = { alta: "Alta", media: "Media", baja: "Baja" };
+const PRIORITY_COLOR: Record<NotifPriority, string> = {
+    alta:  "var(--danger)",
+    media: "#f59e0b",
+    baja:  "var(--tx-3)",
 };
 
 function getInitials(name: string) {
@@ -38,12 +41,13 @@ export function Topbar() {
     const theme  = useThemeStore((s) => s.theme);
     const toggle = useThemeStore((s) => s.toggle);
 
-    const navigate       = useNavigate();
-    const { pathname }   = useLocation();
+    const { notifications, markRead, markAllRead, remove, clearRead } = useNotificationsStore();
+
+    const navigate     = useNavigate();
+    const { pathname } = useLocation();
 
     const [notifOpen,   setNotifOpen]   = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
-    const [notifs,      setNotifs]      = useState(MOCK_NOTIFS);
 
     const notifRef   = useRef<HTMLDivElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
@@ -51,9 +55,9 @@ export function Topbar() {
     useClickOutside(notifRef,   () => setNotifOpen(false));
     useClickOutside(profileRef, () => setProfileOpen(false));
 
-    const unread     = notifs.filter((n) => n.unread).length;
-    const title      = TITLES[pathname] ?? "Grading App";
-    const markAllRead = () => setNotifs((n) => n.map((i) => ({ ...i, unread: false })));
+    const unread       = notifications.filter((n) => !n.read).length;
+    const hasRead      = notifications.some((n) => n.read);
+    const title        = TITLES[pathname] ?? "Grading App";
     const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
 
     return (
@@ -66,30 +70,67 @@ export function Topbar() {
                     {theme === "light" ? <MoonIcon /> : <SunIcon />}
                 </button>
 
+                {/* ── Notification bell ── */}
                 <div ref={notifRef} style={{ position: "relative" }}>
                     <button className={styles.iconBtn}
                         onClick={() => { setNotifOpen((v) => !v); setProfileOpen(false); }}
                         aria-label="Notificaciones">
                         <BellIcon />
-                        {unread > 0 && <span className={styles.badge} />}
+                        {unread > 0 && (
+                            <span className={styles.badge}>{unread > 9 ? "9+" : unread}</span>
+                        )}
                     </button>
+
                     {notifOpen && (
                         <div className={styles.panel}>
                             <div className={styles.panelHeader}>
-                                <span className={styles.panelTitle}>
-                                    Notificaciones{unread > 0 ? ` (${unread})` : ""}
-                                </span>
-                                {unread > 0 && (
-                                    <button className={styles.markRead} onClick={markAllRead}>Marcar leídas</button>
-                                )}
+                                <span className={styles.panelTitle}>Notificaciones</span>
+                                <div className={styles.panelActions}>
+                                    {unread > 0 && (
+                                        <button className={styles.panelAction} onClick={markAllRead}>
+                                            Marcar leídas
+                                        </button>
+                                    )}
+                                    {hasRead && (
+                                        <button className={styles.panelAction} onClick={clearRead}>
+                                            Borrar leídas
+                                        </button>
+                                    )}
+                                </div>
                             </div>
+
                             <div className={styles.notifList}>
-                                {notifs.map((n) => (
-                                    <div key={n.id} className={`${styles.notifItem}${n.unread ? ` ${styles.unread}` : ""}`}>
-                                        {n.unread && <div className={styles.notifDot} />}
-                                        <div className={styles.notifContent} style={n.unread ? {} : { paddingLeft: "19px" }}>
-                                            <p>{n.text}</p>
-                                            <time>{n.time}</time>
+                                {notifications.length === 0 && (
+                                    <div className={styles.emptyNotif}>Sin notificaciones</div>
+                                )}
+                                {notifications.map((n) => (
+                                    <div key={n.id}
+                                        className={`${styles.notifItem}${n.read ? "" : ` ${styles.unread}`}`}>
+                                        <div className={styles.notifPriorityBar}
+                                            style={{ background: PRIORITY_COLOR[n.priority] }} />
+                                        <div className={styles.notifBody}>
+                                            <div className={styles.notifMeta}>
+                                                <span className={styles.notifPriorityLabel}
+                                                    style={{ color: PRIORITY_COLOR[n.priority] }}>
+                                                    {PRIORITY_LABEL[n.priority]}
+                                                </span>
+                                                <time className={styles.notifTime}>{n.time}</time>
+                                            </div>
+                                            <p className={styles.notifText}>{n.text}</p>
+                                        </div>
+                                        <div className={styles.notifItemActions}>
+                                            {!n.read && (
+                                                <button className={styles.notifBtn}
+                                                    title="Marcar como leída"
+                                                    onClick={() => markRead(n.id)}>
+                                                    <CheckIcon />
+                                                </button>
+                                            )}
+                                            <button className={`${styles.notifBtn} ${styles.notifBtnDanger}`}
+                                                title="Eliminar"
+                                                onClick={() => remove(n.id)}>
+                                                <TrashIcon />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -100,6 +141,7 @@ export function Topbar() {
 
                 <div className={styles.divider} />
 
+                {/* ── Profile ── */}
                 <div ref={profileRef} style={{ position: "relative" }}>
                     <button className={styles.profileBtn}
                         onClick={() => { setProfileOpen((v) => !v); setNotifOpen(false); }}>
