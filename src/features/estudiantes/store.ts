@@ -19,8 +19,9 @@ export const useEstudiantesStore = create<EstudiantesState>()((set) => ({
     },
 
     addEstudiante: async (institutionId, data) => {
-        const nuevo = await svc.insertEstudiante(institutionId, data);
-        set((s) => ({ estudiantes: [...s.estudiantes, nuevo] }));
+        await svc.insertEstudiante(institutionId, data);
+        const estudiantes = await svc.fetchEstudiantes(institutionId);
+        set({ estudiantes });
     },
 
     updateEstudiante: async (id, data) => {

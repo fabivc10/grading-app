@@ -1,7 +1,7 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useRef, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { useInstitutionStore, selectCurrentInstitution } from "../../features/institution/store";
-import { BookIcon, UsersIcon, BarChartIcon, CalendarIcon, ClipboardIcon, PlusIcon, CheckIcon, CloseIcon, BellIcon, SettingsIcon } from "../../shared/ui/icons";
+import { BookIcon, UsersIcon, BarChartIcon, CalendarIcon, ClipboardIcon, PlusIcon, CheckIcon, CloseIcon, BellIcon, SettingsIcon, EditIcon, TrashIcon } from "../../shared/ui/icons";
 import styles from "./Sidebar.module.css";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
@@ -16,17 +16,46 @@ const NAV = [
 ];
 
 // ─── CR Education constants ───────────────────────────────────────────────────
-const TIPOS_INSTITUCION = [
-    "Jardín de Niños",
-    "Escuela Primaria",
-    "Colegio Académico Diurno",
-    "Colegio Académico Nocturno",
-    "Liceo",
-    "Colegio Técnico Profesional (CTP)",
-    "CINDEA",
-    "IPEC",
-    "Telesecundaria",
-    "Centro de Educación Especial",
+const TIPOS_INSTITUCION: { grupo: string; opciones: string[] }[] = [
+    {
+        grupo: "Educación Preescolar",
+        opciones: ["Jardín de Niños", "Materno Infantil"],
+    },
+    {
+        grupo: "Educación Primaria",
+        opciones: ["Escuela (Dirección 1–5)", "Escuela Unidocente"],
+    },
+    {
+        grupo: "Educación Secundaria Académica",
+        opciones: [
+            "Colegio Académico",
+            "Liceo Rural",
+            "Colegio Nocturno",
+            "Liceo Experimental Bilingüe",
+            "Colegio Humanístico",
+        ],
+    },
+    {
+        grupo: "Educación Técnica",
+        opciones: ["Colegio Técnico Profesional (CTP)", "Secciones Técnicas"],
+    },
+    {
+        grupo: "Educación de Jóvenes y Adultos (EPJA)",
+        opciones: ["CINDEA", "IPEC"],
+    },
+    {
+        grupo: "Educación Especial",
+        opciones: ["Centro de Educación Especial"],
+    },
+    {
+        grupo: "Otras Modalidades",
+        opciones: [
+            "Telesecundaria",
+            "Aula Abierta",
+            "Aula Integrada",
+            "Educación Abierta (Bachillerato por Madurez)",
+        ],
+    },
 ];
 
 const DIRECCIONES_REGIONALES = [
@@ -38,40 +67,81 @@ const DIRECCIONES_REGIONALES = [
     "Santa Cruz", "Sulá", "Turrialba", "Zona Norte-Norte",
 ];
 
-// ─── Add institution modal ────────────────────────────────────────────────────
-type NewInstData = { name: string; code: string; tipoInstitucion: string; direccionRegional: string; circuito: string; address: string; };
+// ─── Grouped tipo dropdown ────────────────────────────────────────────────────
+function TipoDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
 
-function AddInstitutionModal({ onSave, onClose }: {
-    onSave: (data: NewInstData) => void;
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [open]);
+
+    const label = value || "Seleccionar...";
+
+    return (
+        <div ref={ref} className={styles.tipoDropdown}>
+            <button type="button" className={`${styles.tipoTrigger}${value ? "" : ` ${styles.tipoPlaceholder}`}`} onClick={() => setOpen(v => !v)}>
+                <span>{label}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+                    <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && (
+                <div className={styles.tipoPanel}>
+                    {TIPOS_INSTITUCION.map((g, gi) => (
+                        <div key={g.grupo} className={`${styles.tipoGroup}${gi > 0 ? ` ${styles.tipoGroupBorder}` : ""}`}>
+                            <span className={styles.tipoGroupLabel}>{g.grupo}</span>
+                            {g.opciones.map((o) => (
+                                <button key={o} type="button"
+                                    className={`${styles.tipoOption}${value === o ? ` ${styles.tipoOptionActive}` : ""}`}
+                                    onClick={() => { onChange(o); setOpen(false); }}>
+                                    {o}
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Institution modal (add & edit) ──────────────────────────────────────────
+import type { Institution } from "../../features/institution/types";
+
+type InstFormData = { name: string; code: string; tipoInstitucion: string; direccionRegional: string; circuito: string; address: string; };
+
+function InstitutionModal({ initial, onSave, onClose }: {
+    initial?: Institution;
+    onSave: (data: InstFormData) => void;
     onClose: () => void;
 }) {
-    const [name,    setName]    = useState("");
-    const [code,    setCode]    = useState("");
-    const [tipo,    setTipo]    = useState("");
-    const [dir,     setDir]     = useState("");
-    const [circ,    setCirc]    = useState("");
-    const [address, setAddress] = useState("");
+    const [name,    setName]    = useState(initial?.name    ?? "");
+    const [code,    setCode]    = useState(initial?.code    ?? "");
+    const [tipo,    setTipo]    = useState(initial?.tipoInstitucion    ?? "");
+    const [dir,     setDir]     = useState(initial?.direccionRegional  ?? "");
+    const [circ,    setCirc]    = useState(initial?.circuito           ?? "");
+    const [address, setAddress] = useState(initial?.address           ?? "");
 
-    const valid = name.trim() !== "" && code.trim() !== "" && tipo !== "" && dir !== "" && circ.trim() !== "";
+    const isEdit = Boolean(initial);
+    const valid  = name.trim() !== "" && code.trim() !== "" && tipo !== "" && dir !== "" && circ.trim() !== "";
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (!valid) return;
-        onSave({
-            name: name.trim(),
-            code: code.trim().toUpperCase(),
-            tipoInstitucion: tipo,
-            direccionRegional: dir,
-            circuito: circ.trim(),
-            address: address.trim(),
-        });
+        onSave({ name: name.trim(), code: code.trim().toUpperCase(), tipoInstitucion: tipo, direccionRegional: dir, circuito: circ.trim(), address: address.trim() });
     };
 
     return (
         <div className={styles.instModal} onClick={(e) => e.target === e.currentTarget && onClose()}>
             <div className={styles.instModalCard}>
                 <div className={styles.instModalHeader}>
-                    <span className={styles.instModalTitle}>Nueva institución</span>
+                    <span className={styles.instModalTitle}>{isEdit ? "Editar centro educativo" : "Nuevo centro educativo"}</span>
                     <button className={styles.instModalClose} onClick={onClose}><CloseIcon /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
@@ -85,11 +155,8 @@ function AddInstitutionModal({ onSave, onClose }: {
                             <input type="text" placeholder="Ej: LNCR" maxLength={4} value={code} onChange={(e) => setCode(e.target.value)} required />
                         </div>
                         <div className={styles.instField}>
-                            <label>Tipo de institución</label>
-                            <select value={tipo} onChange={(e) => setTipo(e.target.value)} required>
-                                <option value="">Seleccionar...</option>
-                                {TIPOS_INSTITUCION.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                            <label>Tipo de centro educativo</label>
+                            <TipoDropdown value={tipo} onChange={setTipo} />
                         </div>
                         <div className={styles.instField}>
                             <label>Dirección Regional (MEP)</label>
@@ -99,7 +166,7 @@ function AddInstitutionModal({ onSave, onClose }: {
                             </select>
                         </div>
                         <div className={styles.instField}>
-                            <label>Circuito</label>
+                            <label>Circuito Educativo</label>
                             <input type="text" placeholder="Ej: 01 o 02-A" value={circ} onChange={(e) => setCirc(e.target.value)} required />
                         </div>
                         <div className={styles.instField}>
@@ -109,7 +176,9 @@ function AddInstitutionModal({ onSave, onClose }: {
                     </div>
                     <div className={styles.instModalFooter}>
                         <button type="button" className={styles.instCancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" className={styles.instSaveBtn} disabled={!valid}>Crear institución</button>
+                        <button type="submit" className={styles.instSaveBtn} disabled={!valid}>
+                            {isEdit ? "Guardar cambios" : "Crear centro educativo"}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -119,14 +188,27 @@ function AddInstitutionModal({ onSave, onClose }: {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar() {
-    const { institutions, switchTo, addInstitution } = useInstitutionStore();
+    const { institutions, switchTo, addInstitution, updateInstitution, deleteInstitution } = useInstitutionStore();
     const current = useInstitutionStore(selectCurrentInstitution);
-    const [open,       setOpen]       = useState(false);
-    const [addingInst, setAddingInst] = useState(false);
+    const [open,        setOpen]       = useState(false);
+    const [addingInst,  setAddingInst] = useState(false);
+    const [editingInst, setEditingInst] = useState<Institution | null>(null);
+    const [confirmDel,  setConfirmDel] = useState<number | null>(null);
 
-    const handleAddInst = (data: NewInstData) => {
-        addInstitution(data);
+    const handleAdd = (data: InstFormData) => {
+        addInstitution({ name: data.name, code: data.code, tipoInstitucion: data.tipoInstitucion, direccionRegional: data.direccionRegional, circuito: data.circuito, address: data.address });
         setAddingInst(false);
+    };
+
+    const handleEdit = (data: InstFormData) => {
+        if (!editingInst) return;
+        updateInstitution(editingInst.id, { name: data.name, code: data.code, tipoInstitucion: data.tipoInstitucion, direccionRegional: data.direccionRegional, circuito: data.circuito, address: data.address });
+        setEditingInst(null);
+    };
+
+    const handleDelete = (id: number) => {
+        deleteInstitution(id);
+        setConfirmDel(null);
     };
 
     return (
@@ -148,8 +230,8 @@ export function Sidebar() {
 
                 <div className={styles.switcher}>
                     <div className={styles.switcherHeader}>
-                        <span className={styles.switcherLabel}>Institución</span>
-                        <button className={styles.addInstBtn} onClick={() => setAddingInst(true)} title="Agregar institución">
+                        <span className={styles.switcherLabel}>Centro educativo</span>
+                        <button className={styles.addInstBtn} onClick={() => setAddingInst(true)} title="Agregar centro educativo">
                             <PlusIcon />
                         </button>
                     </div>
@@ -157,13 +239,30 @@ export function Sidebar() {
                     {open && (
                         <div className={styles.dropdown}>
                             {institutions.map((inst) => (
-                                <button key={inst.id}
-                                    className={`${styles.dropdownItem}${inst.id === current.id ? ` ${styles.selected}` : ""}`}
-                                    onClick={() => { switchTo(inst.id); setOpen(false); }}>
-                                    <div className={styles.instAvatar}>{inst.code}</div>
-                                    <span>{inst.name}</span>
-                                    {inst.id === current.id && <CheckIcon className={styles.checkIcon} />}
-                                </button>
+                                <div key={inst.id} className={styles.dropdownRow}>
+                                    {confirmDel === inst.id ? (
+                                        <div className={styles.deleteConfirmRow}>
+                                            <span>¿Eliminar "{inst.name}"?</span>
+                                            <button className={styles.confirmYes} onClick={() => handleDelete(inst.id)}>Sí</button>
+                                            <button className={styles.confirmNo}  onClick={() => setConfirmDel(null)}>No</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button
+                                                className={`${styles.dropdownItem}${inst.id === current.id ? ` ${styles.selected}` : ""}`}
+                                                onClick={() => { switchTo(inst.id); setOpen(false); }}
+                                                title={inst.name}>
+                                                <div className={styles.instAvatar}>{inst.code}</div>
+                                                <span className={styles.dropdownItemName}>{inst.name}</span>
+                                                {inst.id === current.id && <CheckIcon className={styles.checkIcon} />}
+                                            </button>
+                                            <div className={styles.dropdownActions}>
+                                                <button className={styles.dropdownActionBtn} title="Editar" onClick={(e) => { e.stopPropagation(); setEditingInst(inst); setOpen(false); }}><EditIcon /></button>
+                                                <button className={`${styles.dropdownActionBtn} ${styles.dropdownActionDel}`} title="Eliminar" onClick={(e) => { e.stopPropagation(); setConfirmDel(inst.id); }}><TrashIcon /></button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     )}
@@ -183,9 +282,8 @@ export function Sidebar() {
                 </div>
             </aside>
 
-            {addingInst && (
-                <AddInstitutionModal onSave={handleAddInst} onClose={() => setAddingInst(false)} />
-            )}
+            {addingInst  && <InstitutionModal onSave={handleAdd}  onClose={() => setAddingInst(false)} />}
+            {editingInst && <InstitutionModal initial={editingInst} onSave={handleEdit} onClose={() => setEditingInst(null)} />}
         </>
     );
 }

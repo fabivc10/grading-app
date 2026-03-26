@@ -1,9 +1,9 @@
 import { getDb } from "../../shared/lib/db";
 import { genId } from "../../shared/lib/genId";
-import type { StudentEval, StudentCotidiano, TemaItem, EvalEntry, SemanaAsist, EvalCategory } from "./types";
+import type { StudentEval, StudentCotidiano, TemaItem, EvalEntry, EvalTipo, SemanaAsist, EvalCategory } from "./types";
 
 type EvalRow   = { id: string; institution_id: number; asignatura_id: string; nombre: string; estudiante_id: string | null };
-type EntryRow  = { id: string; evaluacion_id: string; category: string; nombre: string; pct: number; semestre: string };
+type EntryRow  = { id: string; evaluacion_id: string; category: string; nombre: string; pct: number; semestre: string; tipo: string };
 type TemaRow   = { id: string; entry_id: string; tema: string; nombre: string; descripcion: string; valor: number; nota: number; nota_descripcion: string };
 type AsistRow  = { id: string; evaluacion_id: string; semestre: string; semana: number; dias: string };
 type EnrollRow = { estudiante_id: string; nombre_completo: string; asignatura_id: string };
@@ -72,9 +72,10 @@ export async function fetchEvaluaciones(institutionId: number): Promise<StudentE
             myEntries.filter((e) => e.category === cat).map((e) => ({
                 id: e.id, nombre: e.nombre, pct: e.pct,
                 semestre: ((e.semestre as string) === 's2' ? 's2' : 's1') as 's1' | 's2',
+                tipo: (e.tipo === 'analitica' ? 'analitica' : 'numerica') as EvalTipo,
                 items: temas.filter((t) => t.entry_id === e.id).map((t) => ({
                     id: t.id, tema: t.tema, nombre: t.nombre,
-                    descripcion: t.descripcion, valor: t.valor, nota: t.nota ?? 0,
+                    descripcion: t.descripcion, valor: t.valor, nota: t.nota ?? t.valor,
                     notaDescripcion: t.nota_descripcion ?? "",
                 })),
             }));
@@ -127,8 +128,8 @@ export async function updateEvaluacion(id: string, patch: Partial<StudentEval>):
             if (!entries) continue;
             for (const entry of entries) {
                 await db.execute(
-                    "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre) VALUES (?,?,?,?,?,?)",
-                    [entry.id, id, cat, entry.nombre, entry.pct, entry.semestre ?? 's1']
+                    "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre, tipo) VALUES (?,?,?,?,?,?,?)",
+                    [entry.id, id, cat, entry.nombre, entry.pct, entry.semestre ?? 's1', entry.tipo ?? 'numerica']
                 );
                 for (const item of entry.items) {
                     await db.execute(
@@ -159,7 +160,8 @@ export async function addEvalEntryBatch(
     category: EvalCategory,
     nombre: string,
     items: TemaItem[],
-    semestre: 's1' | 's2'
+    semestre: 's1' | 's2',
+    tipo: EvalTipo = 'numerica'
 ): Promise<{ recordId: string; entryId: string; items: TemaItem[] }[]> {
     const db = await getDb();
     const pct = items.reduce((s, i) => s + i.valor, 0);
@@ -167,8 +169,8 @@ export async function addEvalEntryBatch(
     for (const recordId of recordIds) {
         const entryId = genId();
         await db.execute(
-            "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre) VALUES (?,?,?,?,?,?)",
-            [entryId, recordId, category, nombre, pct, semestre]
+            "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre, tipo) VALUES (?,?,?,?,?,?,?)",
+            [entryId, recordId, category, nombre, pct, semestre, tipo]
         );
         const savedItems: TemaItem[] = [];
         for (const item of items) {

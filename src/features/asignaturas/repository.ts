@@ -26,12 +26,13 @@ export async function insert(
     nombre: string,
     grupo: string,
     seccion: string,
-    lecciones: number
+    lecciones: number,
+    createdAt: string
 ): Promise<void> {
     const db = await getDb();
     await db.execute(
-        "INSERT INTO asignaturas (id, institution_id, año, nombre, grupo, seccion, lecciones) VALUES (?,?,?,?,?,?,?)",
-        [id, institutionId, año, nombre, grupo, seccion, lecciones]
+        "INSERT INTO asignaturas (id, institution_id, año, nombre, grupo, seccion, lecciones, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        [id, institutionId, año, nombre, grupo, seccion, lecciones, createdAt]
     );
 }
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { StudentEval, StudentCotidiano, EvalWeights, EvalCategory, EvalEntry } from "./types";
+import type { StudentEval, StudentCotidiano, EvalWeights, EvalCategory, EvalEntry, EvalTipo } from "./types";
 import * as svc from "./service";
 
 const DEFAULT_WEIGHTS: EvalWeights = {
@@ -14,7 +14,7 @@ type EvaluacionesState = {
     load: (institutionId: number) => Promise<void>;
     updateRecord: (id: string, patch: Partial<StudentEval>) => Promise<void>;
     deleteRecord: (id: string) => Promise<void>;
-    addEvalEntry: (recordIds: string[], category: EvalCategory, nombre: string, items: EvalEntry["items"], semestre: 's1' | 's2') => Promise<void>;
+    addEvalEntry: (recordIds: string[], category: EvalCategory, nombre: string, items: EvalEntry["items"], semestre: 's1' | 's2', tipo: EvalTipo) => Promise<void>;
     updateConducta: (estudianteId: string, conductaPct: number) => Promise<void>;
     setWeights: (w: EvalWeights) => void;
 };
@@ -49,14 +49,14 @@ export const useEvaluacionesStore = create<EvaluacionesState>()((set, get) => ({
         set((s) => ({ records: s.records.filter((r) => r.id !== id) }));
     },
 
-    addEvalEntry: async (recordIds, category, nombre, items, semestre) => {
-        const created = await svc.addEvalEntryBatch(recordIds, category, nombre, items, semestre);
+    addEvalEntry: async (recordIds, category, nombre, items, semestre, tipo) => {
+        const created = await svc.addEvalEntryBatch(recordIds, category, nombre, items, semestre, tipo);
         const pct = items.reduce((s, i) => s + i.valor, 0);
         set((s) => ({
             records: s.records.map((r) => {
                 const match = created.find((c) => c.recordId === r.id);
                 if (!match) return r;
-                const newEntry: EvalEntry = { id: match.entryId, nombre, pct, semestre, items: match.items };
+                const newEntry: EvalEntry = { id: match.entryId, nombre, pct, semestre, tipo, items: match.items };
                 return { ...r, [category]: [...(r[category as EvalCategory] as EvalEntry[]), newEntry] };
             }),
         }));

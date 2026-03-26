@@ -15,7 +15,7 @@
 .card {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 12px;
+    border-radius: 4px;
     width: 100%;
     max-width: 440px;
     box-shadow: var(--shadow-lg);
@@ -39,7 +39,7 @@
     flex-shrink: 0;
 }
 .title {
-    font-size: 0.9375rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--tx-1);
 }
@@ -47,7 +47,7 @@
 .closeBtn {
     width: 28px;
     height: 28px;
-    border-radius: 6px;
+    border-radius: 3px;
     border: none;
     background: transparent;
     cursor: pointer;

@@ -5,10 +5,11 @@ import * as svc from "./service";
 type InstitutionState = {
     institutions: Institution[];
     currentId: number;
-    // async init — loads institutions from DB
     load: () => Promise<void>;
     switchTo: (id: number) => void;
     addInstitution: (data: Omit<Institution, "id">) => Promise<void>;
+    updateInstitution: (id: number, data: Omit<Institution, "id">) => Promise<void>;
+    deleteInstitution: (id: number) => Promise<void>;
 };
 
 export const useInstitutionStore = create<InstitutionState>()((set) => ({
@@ -25,6 +26,22 @@ export const useInstitutionStore = create<InstitutionState>()((set) => ({
     addInstitution: async (data) => {
         const inst = await svc.insertInstitution(data);
         set((s) => ({ institutions: [...s.institutions, inst], currentId: inst.id }));
+    },
+
+    updateInstitution: async (id, data) => {
+        await svc.updateInstitution(id, data);
+        set((s) => ({
+            institutions: s.institutions.map((i) => i.id === id ? { id, ...data } : i),
+        }));
+    },
+
+    deleteInstitution: async (id) => {
+        await svc.deleteInstitution(id);
+        set((s) => {
+            const institutions = s.institutions.filter((i) => i.id !== id);
+            const currentId = s.currentId === id ? (institutions[0]?.id ?? 0) : s.currentId;
+            return { institutions, currentId };
+        });
     },
 }));
 

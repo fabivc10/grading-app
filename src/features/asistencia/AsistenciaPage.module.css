@@ -95,7 +95,7 @@
 .infoHeader {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 10px;
+    border-radius: 4px;
     padding: 0.65rem 1rem;
     flex-shrink: 0;
 }
@@ -107,7 +107,7 @@
 }
 .infoField     { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 140px; }
 .infoFieldWide { display: flex; flex-direction: column; gap: 0.1rem; flex: 2; min-width: 200px; }
-.infoFieldSm   { display: flex; flex-direction: column; gap: 0.1rem; min-width: 65px; }
+.infoFieldSm   { display: flex; flex-direction: column; gap: 0.1rem; min-width: 65px; align-items: center; }
 .infoActions   { display: flex; align-items: flex-end; padding-bottom: 0.1rem; }
 
 .infoLabel {
@@ -191,7 +191,7 @@
     padding: 0.38rem 0.7rem;
     background: var(--surface-2);
     border: 1.5px solid var(--bd);
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--tx-2);
@@ -210,7 +210,7 @@
     padding: 0.6rem 1rem;
     background: var(--at-notice-bg);
     border: 1px solid var(--at-notice-bd);
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 0.81rem;
     color: var(--at-notice-fg);
     flex-shrink: 0;
@@ -221,7 +221,7 @@
     flex: 1;
     overflow: auto;
     border: 1px solid var(--bd);
-    border-radius: 10px;
+    border-radius: 4px;
     background: var(--surface);
 }
 
@@ -309,14 +309,37 @@
 
 /* ── Month header ────────────────────────────────────────────────────────── */
 .thMonth {
+    position: relative;
     background: var(--at-mon-bg) !important;
     color:      var(--at-mon-fg) !important;
     font-size: 0.71rem;
     font-weight: 700;
     border-top: 2px solid var(--at-mon-bd) !important;
+    text-align: left;
+    padding-right: 22px !important;
+    min-width: 70px;
 }
 .thMonthColl {
     background: var(--at-mon-coll) !important;
+}
+.monthCollapseBtn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: inherit;
+    opacity: 0.7;
+    padding: 0;
+    transition: opacity 0.1s;
+}
+.monthCollapseBtn:hover { opacity: 1; }
+.thCollSpacer,
+.tdCollSpacer {
 }
 
 /* ── Week header ─────────────────────────────────────────────────────────── */
@@ -350,19 +373,6 @@
 .thSumJ   { background: var(--at-sum-j-bg) !important; color: var(--at-sum-j-fg) !important; }
 .thSumPct { background: var(--surface-2) !important;   color: var(--tx-2) !important; }
 
-/* ── Collapse toggle ─────────────────────────────────────────────────────── */
-.collapseBtn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.72rem;
-    color: inherit;
-    opacity: 0.7;
-    padding: 0 0.25rem 0 0;
-    vertical-align: middle;
-    transition: opacity 0.1s;
-}
-.collapseBtn:hover { opacity: 1; }
 
 /* ── Body rows ───────────────────────────────────────────────────────────── */
 .td {
@@ -435,7 +445,7 @@
 .modal {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 12px;
+    border-radius: 4px;
     min-width: 360px;
     max-width: 460px;
     width: 100%;
@@ -471,7 +481,7 @@
     color: var(--tx-3);
     background: var(--surface-2);
     border: 1px solid var(--bd);
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0.5rem 0.7rem;
 }
 .modalFooter {
@@ -489,7 +499,7 @@
     padding: 0.75rem;
     background: var(--surface-2);
     border: 1px solid var(--bd);
-    border-radius: 8px;
+    border-radius: 4px;
 }
 .semBlockTitle {
     font-size: 0.78rem;
@@ -506,7 +516,7 @@
 .field input {
     padding: 0.4rem 0.5rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 6px;
+    border-radius: 3px;
     font-size: 0.8rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -523,7 +533,7 @@
     flex: 1;
     padding: 0.4rem 0.4rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 6px;
+    border-radius: 3px;
     font-size: 0.8rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -535,7 +545,7 @@
     width: 60px;
     padding: 0.4rem 0.4rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 6px;
+    border-radius: 3px;
     font-size: 0.8rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -548,7 +558,7 @@
     padding: 0.42rem 0.85rem;
     background: var(--surface-2);
     border: 1.5px solid var(--bd);
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--tx-2);
@@ -561,7 +571,7 @@
     background: var(--accent);
     color: var(--accent-fg);
     border: none;
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;

@@ -4,7 +4,7 @@
     border-bottom: 1px solid var(--tb-bd);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 0 1.5rem;
     flex-shrink: 0;
 }
@@ -25,7 +25,7 @@
 .iconBtn {
     position: relative;
     width: 36px; height: 36px;
-    border-radius: 7px;
+    border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     color: var(--tx-3); cursor: pointer;
     transition: background 0.12s, color 0.12s;
@@ -55,7 +55,7 @@
     width: 340px;
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 11px;
+    border-radius: 4px;
     box-shadow: var(--shadow-lg);
     z-index: 200;
     overflow: hidden;
@@ -134,7 +134,7 @@
 .notifBtn {
     width: 26px; height: 26px;
     border: none; background: transparent;
-    border-radius: 5px; cursor: pointer;
+    border-radius: 3px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     color: var(--tx-3);
     transition: background 0.1s, color 0.1s;
@@ -152,7 +152,7 @@
 .profileBtn {
     display: flex; align-items: center; gap: 0.45rem;
     padding: 0.2rem 0.45rem 0.2rem 0.2rem;
-    border-radius: 7px; cursor: pointer;
+    border-radius: 3px; cursor: pointer;
     border: none; background: transparent; color: var(--tx-2);
     transition: background 0.12s;
 }
@@ -160,7 +160,7 @@
 
 .avatar {
     width: 30px; height: 30px;
-    background: var(--accent); border-radius: 7px;
+    background: var(--accent); border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.7rem; font-weight: 700; color: var(--accent-fg);
     flex-shrink: 0;
@@ -182,7 +182,7 @@
     width: 188px;
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: var(--shadow-lg);
     z-index: 100;
     overflow: hidden;
@@ -191,7 +191,7 @@
 
 .profileItem {
     display: flex; align-items: center; gap: 0.55rem;
-    padding: 0.5rem 0.7rem; border-radius: 6px;
+    padding: 0.5rem 0.7rem; border-radius: 3px;
     width: 100%; font-size: 0.8125rem; color: var(--tx-1);
     cursor: pointer; border: none; background: transparent;
     transition: background 0.1s; text-align: left;
@@ -208,7 +208,7 @@
 /* ── Theme toggle ── */
 .themeBtn {
     width: 36px; height: 36px;
-    border-radius: 7px;
+    border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     color: var(--tx-3); cursor: pointer;
     border: none; background: transparent;

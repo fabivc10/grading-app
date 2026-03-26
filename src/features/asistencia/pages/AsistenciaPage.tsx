@@ -1,26 +1,37 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAsistenciaStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore, selectCurrentInstitution } from "../../institution/store";
 import { useAuthStore } from "../../auth/store";
-import type { DayKey, EstadoAsist, GlobalSemConfig } from "../types";
+import type { DayKey, EstadoAsist } from "../types";
 import styles from "../AsistenciaPage.module.css";
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const ChevronRightIcon = () => (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+    </svg>
+);
+const ChevronLeftIcon = () => (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+    </svg>
+);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DAYS: { key: DayKey; label: string; offset: number }[] = [
-    { key: 'l', label: 'L',  offset: 0 },
-    { key: 'm', label: 'M',  offset: 1 },
-    { key: 'x', label: 'Mi', offset: 2 },
-    { key: 'j', label: 'J',  offset: 3 },
-    { key: 'v', label: 'V',  offset: 4 },
+    { key: 'l', label: 'L', offset: 0 },
+    { key: 'm', label: 'K', offset: 1 },
+    { key: 'x', label: 'M', offset: 2 },
+    { key: 'j', label: 'J', offset: 3 },
+    { key: 'v', label: 'V', offset: 4 },
 ];
 const CYCLE: (EstadoAsist | null)[] = [null, 'P', 'I', 'T', 'J'];
 const MONTH_NAMES = [
     'Enero','Febrero','Marzo','Abril','Mayo','Junio',
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
 ];
-const SEM_LABELS = { s1: 'Semestre I', s2: 'Semestre II' };
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function addDays(dateStr: string, n: number): string {
@@ -58,113 +69,19 @@ function groupConsec<T>(arr: T[], key: (t: T) => string): { k: string; count: nu
 type MonthGroup = { key: string; month: number; label: string; weeks: string[] };
 type SemGroup   = { semId: 's1' | 's2'; label: string; startDate: string; endDate: string; months: MonthGroup[] };
 type DisplayCol =
-    | { type: 'sem-c';   semId: string }
     | { type: 'month-c'; semId: string; monthKey: string }
     | { type: 'day';     semId: string; semestre: 's1' | 's2'; monthKey: string;
         weekDate: string; weekIdx: number; dayKey: DayKey; date: string; dayLabel: string };
 
-// ─── Date-parts helpers ───────────────────────────────────────────────────────
-type DateParts = { month: string; day: string };
-
-function parseDateParts(d: string): DateParts {
-    if (!d) return { month: '', day: '' };
-    const p = d.split('-');
-    return {
-        month: String(parseInt(p[1] ?? '0', 10) || ''),
-        day:   String(parseInt(p[2] ?? '0', 10) || ''),
-    };
-}
-function buildFullDate(year: number, parts: DateParts): string {
-    if (!parts.month || !parts.day) return '';
-    return `${year}-${parts.month.padStart(2, '0')}-${parts.day.padStart(2, '0')}`;
-}
-
-// ─── Global Semester Config Modal ────────────────────────────────────────────
-function SemConfigModal({ cfg, asigYear, onSave, onClose }: {
-    cfg: GlobalSemConfig;
-    asigYear: number;
-    onSave: (c: GlobalSemConfig) => void;
-    onClose: () => void;
-}) {
-    const [form, setForm] = useState({
-        s1Start: parseDateParts(cfg.s1Start), s1End: parseDateParts(cfg.s1End),
-        s2Start: parseDateParts(cfg.s2Start), s2End: parseDateParts(cfg.s2End),
-    });
-
-    type FK = 's1Start' | 's1End' | 's2Start' | 's2End';
-    const setField = (key: FK, part: keyof DateParts) =>
-        (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
-            setForm(f => ({ ...f, [key]: { ...f[key], [part]: e.target.value } }));
-
-    return (
-        <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-            <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                    <span className={styles.modalTitle}>Configurar semestres</span>
-                    <button className={styles.closeBtn} onClick={onClose}>×</button>
-                </div>
-                <div className={styles.modalBody}>
-                    <p className={styles.modalNote}>
-                        Rango global para todas las asignaturas. El año se toma de la asignatura ({asigYear}).
-                    </p>
-                    {(['s1', 's2'] as const).map(s => (
-                        <div key={s} className={styles.semBlock}>
-                            <div className={styles.semBlockTitle}>{SEM_LABELS[s]}</div>
-                            <div className={styles.semBlockRow}>
-                                {(['Start', 'End'] as const).map(part => {
-                                    const key = `${s}${part}` as FK;
-                                    const val  = form[key];
-                                    return (
-                                        <div key={part} className={styles.field}>
-                                            <label>{part === 'Start' ? 'Inicio' : 'Fin'}</label>
-                                            <div className={styles.datePartsRow}>
-                                                <select className={styles.monthSelect}
-                                                    value={val.month} onChange={setField(key, 'month')}>
-                                                    <option value="">Mes</option>
-                                                    {MONTH_NAMES.map((m, i) => (
-                                                        <option key={i} value={String(i + 1)}>{m}</option>
-                                                    ))}
-                                                </select>
-                                                <input className={styles.dayInput}
-                                                    type="number" min="1" max="31" placeholder="Día"
-                                                    value={val.day} onChange={setField(key, 'day')} />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className={styles.modalFooter}>
-                    <button className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                    <button className={styles.saveBtn} onClick={() => {
-                        onSave({
-                            s1Start: buildFullDate(asigYear, form.s1Start),
-                            s1End:   buildFullDate(asigYear, form.s1End),
-                            s2Start: buildFullDate(asigYear, form.s2Start),
-                            s2End:   buildFullDate(asigYear, form.s2End),
-                        });
-                        onClose();
-                    }}>
-                        Guardar
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export function AsistenciaPage() {
     const asignaturas = useAsignaturasStore(s => s.asignaturas);
-    const { semConfig, semanas, dias, students, loadAll, saveGlobalConfig, updateDia } = useAsistenciaStore();
+    const { semConfig, semanas, dias, students, loadAll, updateDia } = useAsistenciaStore();
     const institution = useInstitutionStore(selectCurrentInstitution);
     const user        = useAuthStore(s => s.user);
 
-    const [selectedAsigId, setSelectedAsigId]   = useState("");
-    const [showConfig, setShowConfig]            = useState(false);
-    const [collapsedSems, setCollapsedSems]      = useState<Set<string>>(new Set());
+    const [searchParams] = useSearchParams();
+    const [selectedAsigId, setSelectedAsigId]   = useState(searchParams.get("asig") ?? "");
     const [collapsedMonths, setCollapsedMonths]  = useState<Set<string>>(new Set());
 
     const asigId = selectedAsigId || asignaturas[0]?.id || "";
@@ -240,10 +157,6 @@ export function AsistenciaPage() {
     const displayCols = useMemo<DisplayCol[]>(() => {
         const cols: DisplayCol[] = [];
         for (const sg of semGroups) {
-            if (collapsedSems.has(sg.semId)) {
-                cols.push({ type: 'sem-c', semId: sg.semId });
-                continue;
-            }
             for (const m of sg.months) {
                 const mKey = `${sg.semId}-${m.key}`;
                 if (collapsedMonths.has(mKey)) {
@@ -262,7 +175,7 @@ export function AsistenciaPage() {
             }
         }
         return cols;
-    }, [semGroups, collapsedSems, collapsedMonths]);
+    }, [semGroups, collapsedMonths]);
 
     // ── Lookup maps ───────────────────────────────────────────────────────────
     const semanaByKey = useMemo(() => {
@@ -281,22 +194,15 @@ export function AsistenciaPage() {
     }, [dias]);
 
     // ── Toggle collapse ───────────────────────────────────────────────────────
-    function toggleSem(id: string) {
-        setCollapsedSems(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-    }
     function toggleMonth(key: string) {
         setCollapsedMonths(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
     }
 
     // ── Header groupings ──────────────────────────────────────────────────────
     const row1 = groupConsec(displayCols, c => c.semId);
-    const row2 = groupConsec(displayCols, c =>
-        c.type === 'sem-c'   ? `sc-${c.semId}` :
-        c.type === 'month-c' ? `mc-${c.semId}-${c.monthKey}` :
-                               `${c.semId}-${c.monthKey}`
-    );
+    const row2 = groupConsec(displayCols, c => `${c.semId}-${c.monthKey}`);
     const row3 = groupConsec(displayCols, c =>
-        c.type === 'day' ? `${c.semId}-${c.monthKey}-${c.weekDate}` : `sp-${c.semId}-${(c as {monthKey?:string}).monthKey ?? ''}`
+        c.type === 'day' ? `${c.semId}-${c.monthKey}-${c.weekDate}` : `sp-${c.semId}-${c.monthKey}`
     );
 
     // Index of the first S2 column in the flat displayCols array (for the divider line)
@@ -394,15 +300,11 @@ export function AsistenciaPage() {
                                 <th className={`${styles.th} ${styles.thName}`} rowSpan={4}>Apellidos y Nombres</th>
                                 {row1.map(g => {
                                     const sg = semGroups.find(s => s.semId === g.k);
-                                    const isColl = collapsedSems.has(g.k);
                                     return (
                                         <th key={g.k} colSpan={g.count}
-                                            className={`${styles.th} ${styles.thSem} ${isColl ? styles.thSemColl : ''} ${g.k === 's2' && firstS2ColIdx >= 0 ? styles.semSplit : ''}`}>
-                                            <button className={styles.collapseBtn} onClick={() => toggleSem(g.k)}>
-                                                {isColl ? '+' : '−'}
-                                            </button>
+                                            className={`${styles.th} ${styles.thSem} ${g.k === 's2' && firstS2ColIdx >= 0 ? styles.semSplit : ''}`}>
                                             {sg?.label ?? g.k}
-                                            {sg && !isColl && sg.startDate && (
+                                            {sg?.startDate && (
                                                 <span className={styles.semDates}>
                                                     {sg.startDate} — {sg.endDate}
                                                 </span>
@@ -423,7 +325,6 @@ export function AsistenciaPage() {
                                     const col = g.first;
                                     const isSplit = firstS2ColIdx >= 0 && gi === firstS2Row2;
                                     const splitCls = isSplit ? styles.semSplit : '';
-                                    if (col.type === 'sem-c') return <th key={gi} className={`${styles.th} ${splitCls}`} />;
                                     const semId = col.semId;
                                     if (col.type === 'month-c') {
                                         const mKey = `${semId}-${col.monthKey}`;
@@ -431,8 +332,8 @@ export function AsistenciaPage() {
                                         return (
                                             <th key={gi} colSpan={g.count}
                                                 className={`${styles.th} ${styles.thMonth} ${styles.thMonthColl} ${splitCls}`}>
-                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>+</button>
                                                 {mLabel}
+                                                <button className={styles.monthCollapseBtn} onClick={() => toggleMonth(mKey)} title="Expandir mes"><ChevronRightIcon /></button>
                                             </th>
                                         );
                                     }
@@ -442,8 +343,8 @@ export function AsistenciaPage() {
                                         return (
                                             <th key={gi} colSpan={g.count}
                                                 className={`${styles.th} ${styles.thMonth} ${splitCls}`}>
-                                                <button className={styles.collapseBtn} onClick={() => toggleMonth(mKey)}>−</button>
                                                 {mLabel}
+                                                <button className={styles.monthCollapseBtn} onClick={() => toggleMonth(mKey)} title="Colapsar mes"><ChevronLeftIcon /></button>
                                             </th>
                                         );
                                     }
@@ -457,7 +358,9 @@ export function AsistenciaPage() {
                                     const col = g.first;
                                     const isSplit = firstS2ColIdx >= 0 && gi === firstS2Row3;
                                     const splitCls = isSplit ? styles.semSplit : '';
-                                    if (col.type !== 'day') return <th key={gi} className={`${styles.th} ${splitCls}`} />;
+                                    if (col.type !== 'day') return (
+                                        <th key={gi} colSpan={g.count} className={`${styles.th} ${styles.thWeek} ${styles.thCollSpacer} ${splitCls}`} />
+                                    );
                                     return (
                                         <th key={gi} colSpan={5} className={`${styles.th} ${styles.thWeek} ${splitCls}`}>
                                             Semana {col.weekIdx}
@@ -470,7 +373,7 @@ export function AsistenciaPage() {
                             <tr>
                                 {displayCols.map((col, ci) => {
                                     const splitCls = firstS2ColIdx >= 0 && ci === firstS2ColIdx ? styles.semSplit : '';
-                                    if (col.type !== 'day') return <th key={ci} className={`${styles.th} ${splitCls}`} />;
+                                    if (col.type !== 'day') return <th key={ci} className={`${styles.th} ${styles.thCollSpacer} ${splitCls}`} />;
                                     return (
                                         <th key={ci} className={`${styles.thDay} ${splitCls}`}>
                                             <div className={styles.dayLabel}>{col.dayLabel}</div>
@@ -490,7 +393,7 @@ export function AsistenciaPage() {
                                         <td className={`${styles.td} ${styles.tdName}`}>{est.nombre_completo}</td>
                                         {displayCols.map((col, ci) => {
                                             const splitCls = firstS2ColIdx >= 0 && ci === firstS2ColIdx ? styles.semSplit : '';
-                                            if (col.type !== 'day') return <td key={ci} className={`${styles.tdSpacer} ${splitCls}`} />;
+                                            if (col.type !== 'day') return <td key={ci} className={`${styles.tdSpacer} ${styles.tdCollSpacer} ${splitCls}`} />;
                                             const semanaId = semanaByKey.get(`${col.semestre}-${col.weekDate}`);
                                             const dia      = semanaId ? diaMap.get(semanaId)?.get(est.id) : null;
                                             const estado   = dia?.[col.dayKey] ?? null;

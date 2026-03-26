@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useEvaluacionesStore } from "../store";
 import { useAsignaturasStore } from "../../asignaturas/store";
-import type { TemaItem, EvalEntry, EvalCategory, StudentEval, EvalWeights } from "../types";
-import { PlusIcon, TrashIcon, EditIcon, ChevronDownIcon, SettingsIcon, FilterIcon, SortIcon, CheckIcon } from "../../../shared/ui/icons";
+import { useConfiguracionStore, DEFAULT_NIVEL_CONFIG, DEFAULT_RANGO_NUMERICA, DEFAULT_RANGO_ANALITICA } from "../../configuracion/store";
+import type { TemaItem, EvalEntry, EvalCategory, EvalTipo, StudentEval, NivelConfig } from "../types";
+import { PlusIcon, TrashIcon, EditIcon, ChevronDownIcon, SettingsIcon, FilterIcon, SortIcon, CheckIcon, UsersIcon } from "../../../shared/ui/icons";
 import { SearchInput } from "../../../shared/ui/SearchInput";
 import { Modal } from "../../../shared/ui/Modal";
 import { EmptyState } from "../../../shared/ui/EmptyState";
@@ -44,63 +45,78 @@ function asistPct(asistencia: StudentEval["asistencia"]): number {
     const pr = allW.reduce((a, w) => a + w.dias.filter(Boolean).length, 0);
     return td > 0 ? Math.round((pr / td) * 100) : 100;
 }
-function calcScore(record: StudentEval, conductaPct: number, weights: EvalWeights): number {
-    let total = (conductaPct / 100) * weights.conducta;
-    for (const c of ALL_CATS) total += (catPct(record[c.key]) / 100) * weights[c.key];
-    total += (asistPct(record.asistencia) / 100) * weights.asistencia;
-    return Math.min(100, Math.max(0, Math.round(total)));
+function applyAusenciasRebaja(total: number, record: StudentEval): number {
+    const { umbralAusencias } = useConfiguracionStore.getState();
+    const absencePct = 100 - asistPct(record.asistencia);
+    const penalty = umbralAusencias.filter(u =>
+        u.dir === ">" ? absencePct > u.valor : absencePct < u.valor
+    ).length;
+    return total - penalty;
 }
-function calcScorePeriod(record: StudentEval, conductaPct: number, weights: EvalWeights, period: 's1' | 's2'): number {
-    let total = (conductaPct / 100) * weights.conducta;
+function calcScore(record: StudentEval, _conductaPct: number, cfg: NivelConfig): number {
+    let total = 0;
+    for (const c of ALL_CATS) {
+        const w = c.key === "proyecto" && cfg.numProyectos === 0 ? 0 : cfg[c.key];
+        total += (catPct(record[c.key]) / 100) * w;
+    }
+    total += (asistPct(record.asistencia) / 100) * cfg.asistencia;
+    return Math.min(100, Math.max(0, Math.round(applyAusenciasRebaja(total, record))));
+}
+function calcScorePeriod(record: StudentEval, _conductaPct: number, cfg: NivelConfig, period: 's1' | 's2'): number {
+    let total = 0;
     for (const c of ALL_CATS) {
         const entries = record[c.key].filter((e) => e.semestre === period);
-        total += (catPct(entries) / 100) * weights[c.key];
+        const w = c.key === "proyecto" && cfg.numProyectos === 0 ? 0 : cfg[c.key];
+        total += (catPct(entries) / 100) * w;
     }
-    total += (asistPct(record.asistencia) / 100) * weights.asistencia;
-    return Math.min(100, Math.max(0, Math.round(total)));
+    total += (asistPct(record.asistencia) / 100) * cfg.asistencia;
+    return Math.min(100, Math.max(0, Math.round(applyAusenciasRebaja(total, record))));
 }
-type StudentStatus = "eximido" | "aprobado" | "reprobado";
-function getStatus(score: number): StudentStatus {
+
+// ── Academic status (for badge + group breakdown + filter) ─────────────────────
+type AcademicStatus = "eximido" | "aprobado" | "convocatoria" | "reprobado";
+function getAcademicStatus(score: number): AcademicStatus {
     if (score >= 90) return "eximido";
     if (score >= 70) return "aprobado";
+    if (score >= 65) return "convocatoria";
     return "reprobado";
 }
+const ACADEMIC_LABEL: Record<AcademicStatus, string> = {
+    eximido:      "Eximido",
+    aprobado:     "Aprobado",
+    convocatoria: "Convocatoria",
+    reprobado:    "Reprobado",
+};
+const ACADEMIC_CLASS: Record<AcademicStatus, string> = {
+    eximido:      "statusExcelente",
+    aprobado:     "statusMuyBuena",
+    convocatoria: "statusRegular",
+    reprobado:    "statusDeficiente",
+};
+function StatusBadge({ score }: { score: number }) {
+    const s = getAcademicStatus(score);
+    return <span className={styles[ACADEMIC_CLASS[s] as keyof typeof styles]}>{ACADEMIC_LABEL[s]}</span>;
+}
+
 function pctClass(pct: number, hasData: boolean, s: CSSMod) {
     if (!hasData) return "";
     return pct >= 80 ? s.pctGood : pct >= 50 ? s.pctMid : s.pctLow;
 }
 type CSSMod = typeof import("../EvaluacionesPage.module.css");
 
-const STATUS_LABEL: Record<StudentStatus, string> = { eximido: "Eximido", aprobado: "Aprobado", reprobado: "Reprobado" };
-function StatusBadge({ score }: { score: number }) {
-    const s = getStatus(score);
-    const cls = s === "eximido" ? styles.statusEximido : s === "aprobado" ? styles.statusAprobado : styles.statusReprobado;
-    return <span className={cls}>{STATUS_LABEL[s]}</span>;
-}
 
-
-// ─── Conducta Circle ──────────────────────────────────────────────────────────
-function ConductaCircle({ pct, onChange }: { pct: number; onChange: (v: number) => void }) {
+// ─── Conducta Chip ────────────────────────────────────────────────────────────
+function ConductaChip({ pct, onChange }: { pct: number; onChange: (v: number) => void }) {
     const [editing, setEditing] = useState(false);
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleMouseLeave = () => { closeTimer.current = setTimeout(() => setEditing(false), 300); };
     const handleMouseEnter = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-    const color = pct >= 80 ? "var(--accent)" : pct >= 50 ? "#f59e0b" : "#ef4444";
-    const size  = 40;
-    const sw    = 3.5;
-    const r     = (size - sw) / 2;
-    const circ  = 2 * Math.PI * r;
-    const off   = circ * (1 - pct / 100);
+    const statusCls = styles[ACADEMIC_CLASS[getAcademicStatus(pct)] as keyof typeof styles];
     return (
         <div className={styles.conductaWrap} onMouseLeave={handleMouseLeave} onMouseEnter={handleMouseEnter} onClick={(e) => e.stopPropagation()}>
-            <button type="button" className={styles.conductaCircle}
-                onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }} title={`Conducta: ${pct}%`}>
-                <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
-                    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--surface-3)" strokeWidth={sw} />
-                    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={sw}
-                        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" />
-                </svg>
-                <span className={styles.conductaPctVal}>{pct}%</span>
+            <button type="button" className={`${styles.conductaChip} ${statusCls}`}
+                onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}>
+                Conducta: {pct}%
             </button>
             {editing && (
                 <div className={styles.conductaPopover} onClick={(e) => e.stopPropagation()}>
@@ -115,14 +131,19 @@ function ConductaCircle({ pct, onChange }: { pct: number; onChange: (v: number) 
 }
 
 // ─── PuntoModal ───────────────────────────────────────────────────────────────
-function PuntoModal({ initial, temaName, onSave, onClose }: {
+function PuntoModal({ initial, temaName, tipo, onSave, onClose }: {
     initial: Partial<TemaItem>; temaName?: string;
+    tipo?: EvalTipo;
     onSave: (item: TemaItem) => void; onClose: () => void;
 }) {
+    const rangoNumerica  = useConfiguracionStore(s => s.rangoNumerica)  ?? DEFAULT_RANGO_NUMERICA;
+    const rangoAnalitica = useConfiguracionStore(s => s.rangoAnalitica) ?? DEFAULT_RANGO_ANALITICA;
+    const rango = tipo === "analitica" ? rangoAnalitica : rangoNumerica;
+
     const [tema,        setTema]        = useState(initial.tema        ?? temaName ?? "");
     const [nombre,      setNombre]      = useState(initial.nombre      ?? "");
     const [descripcion, setDescripcion] = useState(initial.descripcion ?? "");
-    const [valor,       setValor]       = useState(initial.valor       ?? 0);
+    const [valor,       setValor]       = useState(initial.valor       ?? rango.max);
     const isEdit = Boolean(initial.id);
     const valid  = tema.trim() !== "" && nombre.trim() !== "" && valor > 0;
 
@@ -133,23 +154,24 @@ function PuntoModal({ initial, temaName, onSave, onClose }: {
         </>
     );
     return (
-        <Modal open onClose={onClose} title={isEdit ? "Editar punto" : "Nuevo punto de evaluación"} footer={footer}>
+        <Modal open onClose={onClose} title={isEdit ? "Editar indicador" : "Nuevo indicador de evaluación"} footer={footer}>
             <form id="punto-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
-                onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave({ id: initial.id ?? uid(), tema: tema.trim(), nombre: nombre.trim(), descripcion: descripcion.trim(), valor, nota: initial.nota ?? 0, notaDescripcion: initial.notaDescripcion ?? "" }); }}>
+                onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave({ id: initial.id ?? uid(), tema: tema.trim(), nombre: nombre.trim(), descripcion: descripcion.trim(), valor, nota: initial.nota ?? valor, notaDescripcion: initial.notaDescripcion ?? "" }); }}>
                 {!temaName && (
-                    <FormField label="Tema" required>
+                    <FormField label="Contenido" required>
                         <input className={styles.formInput} type="text" placeholder="Ej: Ecosistemas" value={tema}
                             onChange={(e) => setTema(e.target.value)} autoFocus required />
                     </FormField>
                 )}
                 <div className={styles.row2}>
-                    <FormField label="Nombre del punto" required>
+                    <FormField label="Nombre del indicador" required>
                         <input className={styles.formInput} type="text" placeholder="Ej: Definición" value={nombre}
                             onChange={(e) => setNombre(e.target.value)} autoFocus={Boolean(temaName)} required />
                     </FormField>
                     <FormField label="Valor máximo (pts)" required>
-                        <input className={styles.formInput} type="number" min={0.5} step={0.5} value={valor}
-                            onChange={(e) => setValor(Math.max(0, Number(e.target.value)))} required />
+                        <input className={styles.formInput} type="number"
+                            min={rango.min} max={rango.max} step={1} value={valor}
+                            onChange={(e) => setValor(Math.min(rango.max, Math.max(rango.min, Number(e.target.value))))} required />
                     </FormField>
                 </div>
                 <FormField label="Descripción">
@@ -164,19 +186,23 @@ function PuntoModal({ initial, temaName, onSave, onClose }: {
 function AddEvalModal({ records, asignaturas, onSave, onClose }: {
     records: StudentEval[];
     asignaturas: { id: string; nombre: string; grupo: number; seccion: number; año: number }[];
-    onSave: (recordIds: string[], category: EvalCategory, nombre: string, items: TemaItem[], semestre: 's1' | 's2') => void;
+    onSave: (recordIds: string[], category: EvalCategory, nombre: string, items: TemaItem[], semestre: 's1' | 's2', tipo: EvalTipo) => void;
     onClose: () => void;
 }) {
     type LocalPunto = { id: string; nombre: string; valor: number };
     type LocalTema  = { id: string; nombre: string; puntos: LocalPunto[] };
 
+    const rangoNumerica  = useConfiguracionStore(s => s.rangoNumerica)  ?? DEFAULT_RANGO_NUMERICA;
+    const rangoAnalitica = useConfiguracionStore(s => s.rangoAnalitica) ?? DEFAULT_RANGO_ANALITICA;
+
     const [cat,        setCat]        = useState<EvalCategory>("prueba");
+    const [tipo,       setTipo]       = useState<EvalTipo>("numerica");
     const [semestre,   setSemestre]   = useState<'s1' | 's2'>('s1');
     const [nombre,     setNombre]     = useState("");
     const [temas,      setTemas]      = useState<LocalTema[]>([]);
     const [expandedId, setExpandedId] = useState<string>("");
     const [target,     setTarget]     = useState<"estudiante" | "asignatura" | "grupo">("asignatura");
-    const [asigId,     setAsigId]     = useState("");
+    const [asigId,     setAsigId]     = useState(asignaturas[0]?.id ?? "");
     const [estId,      setEstId]      = useState("");
     const [grupo,      setGrupo]      = useState("");
 
@@ -227,8 +253,10 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
     };
     const setTemaNombre = (tid: string, v: string) =>
         setTemas((t) => t.map((x) => x.id === tid ? { ...x, nombre: v } : x));
-    const addPunto = (tid: string) =>
-        setTemas((t) => t.map((x) => x.id === tid ? { ...x, puntos: [...x.puntos, { id: uid(), nombre: "", valor: 0 }] } : x));
+    const addPunto = (tid: string) => {
+        const rango = tipo === "analitica" ? rangoAnalitica : rangoNumerica;
+        setTemas((t) => t.map((x) => x.id === tid ? { ...x, puntos: [...x.puntos, { id: uid(), nombre: "", valor: rango.max }] } : x));
+    };
     const removePunto = (tid: string, pid: string) =>
         setTemas((t) => t.map((x) => x.id === tid ? { ...x, puntos: x.puntos.filter((p) => p.id !== pid) } : x));
     const updatePunto = (tid: string, pid: string, patch: Partial<LocalPunto>) =>
@@ -236,16 +264,17 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
 
     const totalPts = temas.flatMap((t) => t.puntos).reduce((s, p) => s + p.valor, 0);
 
+    const temasIncompletos = temas.length > 0 && !temas.every((t) =>
+        t.nombre.trim() !== "" &&
+        t.puntos.length > 0 &&
+        t.puntos.every((p) => p.nombre.trim() !== "" && p.valor > 0)
+    );
     const valid =
         nombre.trim() !== "" &&
         totalPts > 0 &&
         targetIds.length > 0 &&
         temas.length > 0 &&
-        temas.every((t) =>
-            t.nombre.trim() !== "" &&
-            t.puntos.length > 0 &&
-            t.puntos.every((p) => p.nombre.trim() !== "" && p.valor > 0)
-        );
+        !temasIncompletos;
 
     const handleSave = (e: FormEvent) => {
         e.preventDefault();
@@ -261,13 +290,19 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                 notaDescripcion: "",
             }))
         );
-        onSave(targetIds, cat, nombre.trim(), items, semestre);
+        onSave(targetIds, cat, nombre.trim(), items, semestre, tipo);
     };
+
+    const validationHint = !nombre.trim() ? "Ingresa un nombre para la evaluación."
+        : temas.length === 0 ? "Agrega al menos un contenido con sus indicadores."
+        : temasIncompletos ? "Completa todos los contenidos: cada uno debe tener nombre e indicadores con valor."
+        : targetIds.length === 0 ? "Selecciona a quién aplicar la evaluación."
+        : "";
 
     const footer = (
         <>
             <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-            <button type="submit" form="addeval-form" className={styles.saveBtn} disabled={!valid}>Añadir evaluación</button>
+            <button type="submit" form="addeval-form" className={styles.saveBtn} disabled={!valid} title={validationHint || undefined}>Añadir evaluación</button>
         </>
     );
 
@@ -287,13 +322,31 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                             </FormField>
                         </div>
 
-                        {/* Semestre */}
-                        <FormField label="Semestre">
-                            <select className={styles.formInput} value={semestre} onChange={e => setSemestre(e.target.value as 's1' | 's2')}>
-                                <option value="s1">Semestre I</option>
-                                <option value="s2">Semestre II</option>
-                            </select>
-                        </FormField>
+                        {/* Tipo + Semestre */}
+                        <div className={styles.row2}>
+                            <FormField label="Tipo de evaluación">
+                                <div className={styles.tipoToggle}>
+                                    {(["numerica", "analitica"] as EvalTipo[]).map(t => (
+                                        <button key={t} type="button"
+                                            className={`${styles.tipoBtn}${tipo === t ? ` ${styles.tipoBtnActive}` : ""}`}
+                                            onClick={() => setTipo(t)}>
+                                            {t === "numerica" ? "Numérica" : "Analítica"}
+                                        </button>
+                                    ))}
+                                </div>
+                                <span className={styles.tipoHint}>
+                                    {tipo === "numerica"
+                                        ? `${rangoNumerica.min}–${rangoNumerica.max} pts`
+                                        : `${rangoAnalitica.min}–${rangoAnalitica.max} pts`}
+                                </span>
+                            </FormField>
+                            <FormField label="Semestre">
+                                <select className={styles.formInput} value={semestre} onChange={e => setSemestre(e.target.value as 's1' | 's2')}>
+                                    <option value="s1">Semestre I</option>
+                                    <option value="s2">Semestre II</option>
+                                </select>
+                            </FormField>
+                        </div>
 
                         {/* Temas y Puntos builder */}
                         <FormField label="Contenido">
@@ -311,7 +364,6 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                                 style={{ cursor: "pointer" }}
                                             >
                                                 <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
-                                                <span className={styles.temaBuilderNum}>Tema {ti + 1}</span>
                                                 {!isOpen ? (
                                                     <span className={styles.temaBuilderCollapsedName}>
                                                         {tema.nombre || <em style={{ color: "var(--tx-3)" }}>Sin nombre</em>}
@@ -320,7 +372,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                                 ) : (
                                                     <input
                                                         className={styles.temaBuilderInput}
-                                                        placeholder="Nombre del tema"
+                                                        placeholder="Nombre del contenido"
                                                         value={tema.nombre}
                                                         onChange={(e) => { e.stopPropagation(); setTemaNombre(tema.id, e.target.value); }}
                                                         onClick={(e) => e.stopPropagation()}
@@ -338,18 +390,19 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                                         <div key={p.id} className={styles.puntoBuilderRow}>
                                                             <input
                                                                 className={styles.puntoBuilderName}
-                                                                placeholder="Punto a evaluar"
+                                                                placeholder="Indicador a evaluar"
                                                                 value={p.nombre}
                                                                 onChange={(e) => updatePunto(tema.id, p.id, { nombre: e.target.value })}
                                                             />
                                                             <input
                                                                 className={styles.puntoBuilderVal}
                                                                 type="number"
-                                                                placeholder="0"
-                                                                min={0.5}
-                                                                step={0.5}
+                                                                placeholder={String((tipo === "numerica" ? rangoNumerica : rangoAnalitica).max)}
+                                                                min={(tipo === "numerica" ? rangoNumerica : rangoAnalitica).min}
+                                                                max={(tipo === "numerica" ? rangoNumerica : rangoAnalitica).max}
+                                                                step={1}
                                                                 value={p.valor || ""}
-                                                                onChange={(e) => updatePunto(tema.id, p.id, { valor: Number(e.target.value) })}
+                                                                onChange={(e) => updatePunto(tema.id, p.id, { valor: e.target.value === "" ? 0 : Number(e.target.value) })}
                                                             />
                                                             <span className={styles.puntoBuilderPts}>pts</span>
                                                             <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`}
@@ -359,12 +412,12 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                                     <div className={styles.puntoBuilderFooter}>
                                                         <button type="button" className={styles.builderAddPuntoBtn}
                                                             onClick={() => addPunto(tema.id)}>
-                                                            <PlusIcon /> Punto
+                                                            <PlusIcon /> Agregar indicador
                                                         </button>
                                                         <button type="button" className={styles.builderSaveBtn}
                                                             disabled={!temaOk}
                                                             onClick={() => setExpandedId("")}>
-                                                            Guardar tema
+                                                            Guardar contenido
                                                         </button>
                                                     </div>
                                                 </div>
@@ -395,7 +448,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                             <FormField label="Asignatura" required>
                                 <select className={styles.formInput} value={asigId} onChange={(e) => setAsigId(e.target.value)} required>
                                     <option value="">Selecciona…</option>
-                                    {asignaturas.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo} · {a.año}</option>)}
+                                    {asignaturas.map((a) => <option key={a.id} value={a.id}>{a.nombre} {a.grupo}-{a.seccion} ({a.año})</option>)}
                                 </select>
                             </FormField>
                         )}
@@ -418,7 +471,7 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                 <FormField label="Asignatura" required>
                                     <select className={styles.formInput} value={asigId} onChange={(e) => setAsigId(e.target.value)} required disabled={!estId}>
                                         <option value="">Selecciona…</option>
-                                        {estAsigs.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo}</option>)}
+                                        {estAsigs.map((a) => <option key={a.id} value={a.id}>{a.nombre} {a.grupo}-{a.seccion} ({a.año})</option>)}
                                     </select>
                                 </FormField>
                             </div>
@@ -428,53 +481,19 @@ function AddEvalModal({ records, asignaturas, onSave, onClose }: {
                                 Se añadirá a <strong>{targetIds.length}</strong> registro{targetIds.length !== 1 ? "s" : ""}
                             </div>
                         )}
-            </form>
-        </Modal>
-    );
-}
-
-// ─── WeightsModal ─────────────────────────────────────────────────────────────
-function WeightsModal({ initial, onSave, onClose }: {
-    initial: EvalWeights; onSave: (w: EvalWeights) => void; onClose: () => void;
-}) {
-    const [w, setW] = useState<EvalWeights>({ ...initial });
-    const total = Object.values(w).reduce((a, b) => a + b, 0);
-    const valid = total === 100;
-    const setField = (key: keyof EvalWeights) => (e: React.ChangeEvent<HTMLInputElement>) =>
-        setW((p) => ({ ...p, [key]: Math.max(0, Number(e.target.value)) }));
-    const labels: Record<keyof EvalWeights, string> = {
-        conducta: "Conducta", cotidiano: "Trabajo Cotidiano", tareas: "Tareas",
-        prueba: "Prueba", proyecto: "Proyecto", asistencia: "Asistencia",
-    };
-    const footer = (
-        <>
-            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-            <button type="submit" form="weights-form" className={styles.saveBtn} disabled={!valid}>Aplicar</button>
-        </>
-    );
-    return (
-        <Modal open onClose={onClose} title="Distribución evaluativa" footer={footer}>
-            <form id="weights-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
-                onSubmit={(e) => { e.preventDefault(); if (!valid) return; onSave(w); }}>
-                <div className={styles.row2}>
-                    {(Object.keys(labels) as (keyof EvalWeights)[]).map((key) => (
-                        <FormField key={key} label={labels[key]}>
-                            <input className={styles.formInput} type="number" min={0} max={100} value={w[key]} onChange={setField(key)} />
-                        </FormField>
-                    ))}
-                </div>
-                <div className={`${styles.sumLine} ${!valid ? styles.sumWarn : ""}`}>
-                    Suma total: <strong>{total}</strong>{!valid && " — debe sumar 100"}
-                </div>
+                        {validationHint && (
+                            <div className={styles.validationHint}>{validationHint}</div>
+                        )}
             </form>
         </Modal>
     );
 }
 
 // ─── TemaGroupRow — collapsible contenido with puntos ────────────────────────
-function TemaGroupRow({ temaName, items, onAddPunto, onEditPunto, onDeleteItem, onNotaBlur, onNotaDescBlur }: {
+function TemaGroupRow({ temaName, items, tipo, onAddPunto, onEditPunto, onDeleteItem, onNotaBlur, onNotaDescBlur }: {
     temaName: string;
     items: TemaItem[];
+    tipo: EvalTipo;
     onAddPunto: () => void;
     onEditPunto: (item: TemaItem) => void;
     onDeleteItem: (id: string) => void;
@@ -499,7 +518,7 @@ function TemaGroupRow({ temaName, items, onAddPunto, onEditPunto, onDeleteItem, 
                 </span>
                 <button type="button" className={styles.temaAddBtn}
                     onClick={(e) => { e.stopPropagation(); onAddPunto(); }}>
-                    <PlusIcon /> Punto
+                    <PlusIcon /> Agregar indicador
                 </button>
             </div>
             {open && (
@@ -527,7 +546,7 @@ function TemaGroupRow({ temaName, items, onAddPunto, onEditPunto, onDeleteItem, 
                                         defaultValue={item.nota}
                                         min={0}
                                         max={item.valor}
-                                        step={0.5}
+                                        step={1}
                                         onBlur={(e) => onNotaBlur(item.id, e.target.value)}
                                     />
                                     <span className={styles.notaMax}>/{item.valor}</span>
@@ -552,7 +571,7 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
     onDelete: (id: string) => void;
 }) {
     const [open,       setOpen]       = useState(false);
-    const [puntoModal, setPuntoModal] = useState<{ temaName?: string; item?: TemaItem } | null>(null);
+    const [puntoModal, setPuntoModal] = useState<{ temaName?: string; item?: TemaItem; tipo?: EvalTipo } | null>(null);
 
     const earned    = entryEarned(entry);
     const pct       = toPct(earned, entry.pct);
@@ -606,15 +625,16 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
 
             {open && (
                 <div className={styles.entryBody}>
-                    {temasMap.size === 0 && <p className={styles.emptyItems}>Sin temas — añade el primer punto</p>}
+                    {temasMap.size === 0 && <p className={styles.emptyItems}>Sin contenidos — añade el primer indicador</p>}
 
                     {[...temasMap.entries()].map(([temaName, items]) => (
                         <TemaGroupRow
                             key={temaName}
                             temaName={temaName}
                             items={items}
-                            onAddPunto={() => setPuntoModal({ temaName })}
-                            onEditPunto={(item) => setPuntoModal({ temaName, item })}
+                            tipo={entry.tipo}
+                            onAddPunto={() => setPuntoModal({ temaName, tipo: entry.tipo })}
+                            onEditPunto={(item) => setPuntoModal({ temaName, item, tipo: entry.tipo })}
                             onDeleteItem={handleDeleteItem}
                             onNotaBlur={handleNotaBlur}
                             onNotaDescBlur={handleNotaDescBlur}
@@ -622,7 +642,7 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
                     ))}
 
                     <div className={styles.entryFooter}>
-                        <button type="button" className={styles.addItemBtn} onClick={() => setPuntoModal({})}>
+                        <button type="button" className={styles.addItemBtn} onClick={() => setPuntoModal({ tipo: entry.tipo })}>
                             <PlusIcon /> Agregar contenido
                         </button>
                         <span className={styles.totalLine}>
@@ -636,6 +656,7 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
                 <PuntoModal
                     initial={puntoModal.item ?? {}}
                     temaName={puntoModal.temaName}
+                    tipo={puntoModal.tipo}
                     onSave={handleSavePunto}
                     onClose={() => setPuntoModal(null)}
                 />
@@ -645,13 +666,15 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
 }
 
 // ─── CategoryGroup ────────────────────────────────────────────────────────────
-function CategoryGroup({ label, catKey, entries, weight, onChange }: {
+function CategoryGroup({ label, catKey, entries, weight, maxEntries, onChange }: {
     label: string; catKey: EvalCategory; entries: EvalEntry[]; weight: number;
+    maxEntries?: number;
     onChange: (entries: EvalEntry[]) => void;
 }) {
     const pct     = catPct(entries);
     const hasData = entries.some((e) => e.items.some((i) => i.nota > 0));
     const pc      = pctClass(pct, hasData, styles as unknown as CSSMod);
+    const atLimit = maxEntries !== undefined && entries.length >= maxEntries;
 
     const handleUpdate = (updated: EvalEntry) => onChange(entries.map((e) => (e.id === updated.id ? updated : e)));
     const handleDelete = (id: string) => onChange(entries.filter((e) => e.id !== id));
@@ -662,10 +685,10 @@ function CategoryGroup({ label, catKey, entries, weight, onChange }: {
                 <span className={styles.catTitle}>{label}</span>
                 <div className={styles.catStats}>
                     {hasData && <span className={`${styles.catPct} ${pc}`}>{pct}%</span>}
-                    <span className={styles.catWeight}>{weight} pts</span>
-                    {entries.length > 0 && (
-                        <span className={styles.catAllocNote}>
-                            {entries.reduce((s, e) => s + e.pct, 0)}/{weight} asignados
+                    <span className={styles.catWeight}>{weight}%</span>
+                    {maxEntries !== undefined && (
+                        <span className={atLimit ? styles.catLimitReached : styles.catAllocNote}>
+                            {entries.length}/{maxEntries}
                         </span>
                     )}
                 </div>
@@ -679,85 +702,122 @@ function CategoryGroup({ label, catKey, entries, weight, onChange }: {
                 </div>
             )}
             {entries.length === 0 && (
-                <div className={styles.catEmpty}>Sin evaluaciones · {weight} pts disponibles</div>
+                <div className={styles.catEmpty}>Sin evaluaciones · {weight}% disponibles</div>
             )}
         </div>
     );
 }
 
-// ─── AsignaturaPanel ──────────────────────────────────────────────────────────
-function AsignaturaPanel({ record, conductaPct, weights, asigNombre, onUpdate, onDelete }: {
-    record: StudentEval; conductaPct: number; weights: EvalWeights;
-    asigNombre: string;
+// ─── StudentPanel ─────────────────────────────────────────────────────────────
+function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, onConductaChange }: {
+    record: StudentEval; conductaPct: number; nivelConfig: NivelConfig;
     onUpdate: (id: string, patch: Partial<StudentEval>) => void;
     onDelete: (id: string) => void;
+    onConductaChange: (estudianteId: string, pct: number) => void;
 }) {
     const [open, setOpen] = useState(false);
-    const score  = calcScore(record, conductaPct, weights);
-    const scoreS1 = calcScorePeriod(record, conductaPct, weights, 's1');
-    const scoreS2 = calcScorePeriod(record, conductaPct, weights, 's2');
-    const pc     = pctClass(score, true, styles as unknown as CSSMod);
+    const score   = calcScore(record, conductaPct, nivelConfig);
+    const scoreS1 = calcScorePeriod(record, conductaPct, nivelConfig, 's1');
+    const scoreS2 = calcScorePeriod(record, conductaPct, nivelConfig, 's2');
+    const sc = (s: number) => styles[ACADEMIC_CLASS[getAcademicStatus(s)] as keyof typeof styles];
 
     return (
         <div className={styles.asigPanel}>
             <div className={styles.asigPanelHead} onClick={() => setOpen((v) => !v)}>
                 <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
-                <span className={styles.asigPanelName}>{asigNombre}</span>
+                <span className={styles.asigPanelName}>{record.nombre}</span>
                 <span className={styles.periodBadges}>
-                    <span className={`${styles.periodBadge} ${pctClass(scoreS1, true, styles as unknown as CSSMod)}`}>S1: {scoreS1}%</span>
-                    <span className={`${styles.periodBadge} ${pctClass(scoreS2, true, styles as unknown as CSSMod)}`}>S2: {scoreS2}%</span>
+                    <span className={`${styles.periodBadge} ${sc(scoreS1)}`}>Semestre I: {scoreS1}%</span>
+                    <span className={`${styles.periodBadge} ${sc(scoreS2)}`}>Semestre II: {scoreS2}%</span>
                 </span>
-                <span className={`${styles.asigScore} ${pc}`}>{score}%</span>
+                <span className={`${styles.asigScore} ${sc(score)}`} title="Promedio general">P. General: {score}%</span>
                 <StatusBadge score={score} />
-                <Link to="/app/asistencia" className={styles.asistChip}
+                <ConductaChip pct={conductaPct} onChange={(pct) => onConductaChange(record.estudianteId ?? record.id, pct)} />
+                <Link to={`/app/asistencia?asig=${record.asignaturaId}`}
+                    className={`${styles.asistChip} ${sc(asistPct(record.asistencia))}`}
                     onClick={(e) => e.stopPropagation()}>
-                    {asistPct(record.asistencia)}% asist. →
+                    {asistPct(record.asistencia)}% asistencia →
                 </Link>
-                <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`}
-                    onClick={(e) => { e.stopPropagation(); onDelete(record.id); }}><TrashIcon /></button>
+                <div className={styles.rowActions}>
+                    <Link to={`/app/estudiantes?q=${encodeURIComponent(record.nombre)}`}
+                        className={styles.iconBtn}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Ver en Estudiantes"><UsersIcon /></Link>
+                    <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`}
+                        onClick={(e) => { e.stopPropagation(); onDelete(record.id); }}><TrashIcon /></button>
+                </div>
             </div>
             {open && (
                 <div className={styles.asigBody}>
-                    {ALL_CATS.map((c) => (
-                        <CategoryGroup
-                            key={c.key}
-                            label={c.label}
-                            catKey={c.key}
-                            entries={record[c.key]}
-                            weight={weights[c.key]}
-                            onChange={(entries) => onUpdate(record.id, { [c.key]: entries })}
-                        />
-                    ))}
+                    {ALL_CATS
+                        .filter((c) => c.key !== "proyecto" || nivelConfig.numProyectos > 0)
+                        .map((c) => {
+                            const maxMap: Record<EvalCategory, number | undefined> = {
+                                cotidiano: undefined,
+                                tareas:    nivelConfig.numTareas,
+                                prueba:    nivelConfig.numPruebas,
+                                proyecto:  nivelConfig.numProyectos,
+                            };
+                            return (
+                                <CategoryGroup
+                                    key={c.key}
+                                    label={c.label}
+                                    catKey={c.key}
+                                    entries={record[c.key]}
+                                    weight={nivelConfig[c.key]}
+                                    maxEntries={maxMap[c.key]}
+                                    onChange={(entries) => onUpdate(record.id, { [c.key]: entries })}
+                                />
+                            );
+                        })}
                 </div>
             )}
         </div>
     );
 }
 
-// ─── StudentGroup ─────────────────────────────────────────────────────────────
-function StudentGroup({ nombre, estudianteId, records, conductaPct, weights, asigNombreMap, onUpdate, onDelete, onConductaChange }: {
-    nombre: string; estudianteId: string;
-    records: StudentEval[]; conductaPct: number; weights: EvalWeights;
-    asigNombreMap: Record<string, string>;
+// ─── AsignaturaGroup ──────────────────────────────────────────────────────────
+function AsignaturaGroup({ asigNombre, records, conductaMap, nivelConfig, onUpdate, onDelete, onConductaChange }: {
+    asigNombre: string;
+    records: StudentEval[];
+    conductaMap: Map<string, number>;
+    nivelConfig: NivelConfig;
     onUpdate: (id: string, patch: Partial<StudentEval>) => void;
     onDelete: (id: string) => void;
-    onConductaChange: (id: string, pct: number) => void;
+    onConductaChange: (estudianteId: string, pct: number) => void;
 }) {
     const [open, setOpen] = useState(false);
+    const scores       = records.map((r) => calcScore(r, conductaMap.get(r.estudianteId ?? r.id) ?? 100, nivelConfig));
+    const eximidos     = scores.filter((s) => getAcademicStatus(s) === "eximido").length;
+    const aprobados    = scores.filter((s) => getAcademicStatus(s) === "aprobado").length;
+    const convocatoria = scores.filter((s) => getAcademicStatus(s) === "convocatoria").length;
+    const reprobados   = scores.filter((s) => getAcademicStatus(s) === "reprobado").length;
+
     return (
         <div className={styles.studentCard}>
             <div className={styles.studentCardHead} onClick={() => setOpen((v) => !v)}>
                 <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
-                <span className={styles.studentName}>{nombre}</span>
-                <span className={styles.asigLabel}>{records.length} asignatura{records.length !== 1 ? "s" : ""}</span>
-                <ConductaCircle pct={conductaPct} onChange={(pct) => onConductaChange(estudianteId, pct)} />
+                <span className={styles.studentName}>{asigNombre}</span>
+                <span className={styles.asigLabel}>{records.length} estudiante{records.length !== 1 ? "s" : ""}</span>
+                <span className={styles.statusBreakdown}>
+                    {eximidos     > 0 && <span className={styles.statusExcelente}>{eximidos} eximido{eximidos !== 1 ? "s" : ""}</span>}
+                    {aprobados    > 0 && <span className={styles.statusMuyBuena}>{aprobados} aprobado{aprobados !== 1 ? "s" : ""}</span>}
+                    {convocatoria > 0 && <span className={styles.statusRegular}>{convocatoria} convocatoria</span>}
+                    {reprobados   > 0 && <span className={styles.statusDeficiente}>{reprobados} reprobado{reprobados !== 1 ? "s" : ""}</span>}
+                </span>
             </div>
             {open && (
                 <div className={styles.cardBody}>
                     {records.map((record) => (
-                        <AsignaturaPanel key={record.id} record={record} conductaPct={conductaPct}
-                            weights={weights} asigNombre={asigNombreMap[record.asignaturaId] ?? record.asignaturaId}
-                            onUpdate={onUpdate} onDelete={onDelete} />
+                        <StudentPanel
+                            key={record.id}
+                            record={record}
+                            conductaPct={conductaMap.get(record.estudianteId ?? record.id) ?? 100}
+                            nivelConfig={nivelConfig}
+                            onUpdate={onUpdate}
+                            onDelete={onDelete}
+                            onConductaChange={onConductaChange}
+                        />
                     ))}
                 </div>
             )}
@@ -770,8 +830,8 @@ export function EvaluacionesPage() {
     const asignaturas   = useAsignaturasStore((s) => s.asignaturas);
     const records       = useEvaluacionesStore((s) => s.records);
     const cotidianos    = useEvaluacionesStore((s) => s.cotidianos);
-    const weights       = useEvaluacionesStore((s) => s.weights);
     const storeUpdate   = useEvaluacionesStore((s) => s.updateRecord);
+    const nivelConfigs  = useConfiguracionStore((s) => s.nivelConfigs);
     const storeDelete   = useEvaluacionesStore((s) => s.deleteRecord);
 
     const storeConducta = useEvaluacionesStore((s) => s.updateConducta);
@@ -781,7 +841,7 @@ export function EvaluacionesPage() {
     const [filterAño,    setFilterAño]    = useState("");
     const [filterGrupo,  setFilterGrupo]  = useState("");
     const [filterAsig,   setFilterAsig]   = useState("");
-    const [filterEstado, setFilterEstado] = useState<StudentStatus | "">("");
+    const [filterEstado, setFilterEstado] = useState<AcademicStatus | "">("");
 
     const [showAddEval, setShowAddEval] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -827,29 +887,48 @@ export function EvaluacionesPage() {
         return m;
     }, [cotidianos]);
 
-    const studentGroups = useMemo(() => {
+    const asigNombreMap = useMemo(() => {
+        const m: Record<string, string> = {};
+        asignaturas.forEach((a) => { m[a.id] = `${a.nombre} ${a.grupo} - ${a.seccion}`; });
+        return m;
+    }, [asignaturas]);
+
+    const asigNivelMap = useMemo(() => {
+        const m = new Map<string, NivelConfig>();
+        asignaturas.forEach((a) => {
+            const key = `${a.año}-${a.grupo}`;
+            m.set(a.id, nivelConfigs[key] ?? DEFAULT_NIVEL_CONFIG);
+        });
+        return m;
+    }, [asignaturas, nivelConfigs]);
+
+    const asignaturaGroups = useMemo(() => {
         const map = new Map<string, { key: string; nombre: string; records: StudentEval[] }>();
         filtered.forEach((r) => {
-            const key = r.estudianteId ?? r.id;
-            if (!map.has(key)) map.set(key, { key, nombre: r.nombre, records: [] });
-            map.get(key)!.records.push(r);
+            if (!map.has(r.asignaturaId)) {
+                map.set(r.asignaturaId, { key: r.asignaturaId, nombre: asigNombreMap[r.asignaturaId] ?? r.asignaturaId, records: [] });
+            }
+            map.get(r.asignaturaId)!.records.push(r);
         });
         const q = search.toLowerCase().trim();
         return [...map.values()].filter((g) => !q || g.nombre.toLowerCase().includes(q));
-    }, [filtered, search]);
+    }, [filtered, search, asigNombreMap]);
 
     const activeFilterCount = [filterAño, filterGrupo, filterAsig, filterEstado].filter(Boolean).length;
 
     const avgScore = (g: { key: string; records: StudentEval[] }) => {
         if (!g.records.length) return 100;
-        const cp = conductaMap.get(g.key) ?? 100;
-        return g.records.reduce((s, r) => s + calcScore(r, cp, weights), 0) / g.records.length;
+        const cfg = asigNivelMap.get(g.key) ?? DEFAULT_NIVEL_CONFIG;
+        return g.records.reduce((s, r) => {
+            const cp = conductaMap.get(r.estudianteId ?? r.id) ?? 100;
+            return s + calcScore(r, cp, cfg);
+        }, 0) / g.records.length;
     };
 
     const filteredGroups = useMemo(() => {
-        if (!filterEstado) return studentGroups;
-        return studentGroups.filter((g) => getStatus(Math.round(avgScore(g))) === filterEstado);
-    }, [studentGroups, filterEstado, conductaMap, weights]);
+        if (!filterEstado) return asignaturaGroups;
+        return asignaturaGroups.filter((g) => getAcademicStatus(Math.round(avgScore(g))) === filterEstado);
+    }, [asignaturaGroups, filterEstado, conductaMap, asigNivelMap]);
 
     const sortedGroups = useMemo(() => {
         const arr = [...filteredGroups];
@@ -863,16 +942,10 @@ export function EvaluacionesPage() {
             return d !== 0 ? d : a.nombre.localeCompare(b.nombre);
         });
         return arr.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    }, [filteredGroups, sortBy, conductaMap, weights]);
+    }, [filteredGroups, sortBy, conductaMap, asigNivelMap]);
 
-    const asigNombreMap = useMemo(() => {
-        const m: Record<string, string> = {};
-        asignaturas.forEach((a) => { m[a.id] = `${a.nombre} · ${a.grupo}`; });
-        return m;
-    }, [asignaturas]);
-
-    const totalStudents = useMemo(
-        () => new Set(records.map((r) => r.estudianteId ?? r.id)).size, [records]
+    const totalAsignaturas = useMemo(
+        () => new Set(records.map((r) => r.asignaturaId)).size, [records]
     );
 
     return (
@@ -882,9 +955,9 @@ export function EvaluacionesPage() {
                 <div>
                     <h2>Evaluaciones</h2>
                     <p className={styles.countText}>
-                        {sortedGroups.length !== totalStudents
-                            ? `${sortedGroups.length} de ${totalStudents} estudiante${totalStudents !== 1 ? "s" : ""}`
-                            : `${totalStudents} estudiante${totalStudents !== 1 ? "s" : ""}`}
+                        {sortedGroups.length !== totalAsignaturas
+                            ? `${sortedGroups.length} de ${totalAsignaturas} asignatura${totalAsignaturas !== 1 ? "s" : ""}`
+                            : `${totalAsignaturas} asignatura${totalAsignaturas !== 1 ? "s" : ""}`}
                     </p>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -899,7 +972,7 @@ export function EvaluacionesPage() {
 
             {/* Toolbar */}
             <div className={styles.toolbar}>
-                <SearchInput value={search} onChange={setSearch} placeholder="Buscar estudiante…" width={220} />
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar asignatura…" width={220} />
                 <div className={styles.filterBtnWrap}>
                     <button type="button"
                         className={`${styles.filterToggleBtn}${activeFilterCount > 0 ? ` ${styles.filterToggleActive}` : ""}`}
@@ -935,10 +1008,11 @@ export function EvaluacionesPage() {
                                 <div className={styles.filterPopoverRow}>
                                     <label>Estado</label>
                                     <select className={styles.filterSelect} value={filterEstado}
-                                        onChange={(e) => setFilterEstado(e.target.value as StudentStatus | "")}>
+                                        onChange={(e) => setFilterEstado(e.target.value as AcademicStatus | "")}>
                                         <option value="">Todos</option>
                                         <option value="eximido">Eximido</option>
                                         <option value="aprobado">Aprobado</option>
+                                        <option value="convocatoria">Convocatoria</option>
                                         <option value="reprobado">Reprobado</option>
                                     </select>
                                 </div>
@@ -964,14 +1038,19 @@ export function EvaluacionesPage() {
                         <>
                             <div className={styles.filterBackdrop} onClick={() => setShowSort(false)} />
                             <div className={styles.filterPopover}>
-                                {SORT_OPTIONS.map((o) => (
-                                    <button key={o.value} type="button"
-                                        className={`${styles.sortOption}${sortBy === o.value ? ` ${styles.sortOptionActive}` : ""}`}
-                                        onClick={() => { setSortBy(o.value); setShowSort(false); }}>
-                                        {o.label}
-                                        {sortBy === o.value && <CheckIcon className={styles.sortCheckIcon} />}
-                                    </button>
-                                ))}
+                                {SORT_OPTIONS.map((o) => {
+                                    const active = sortBy === o.value;
+                                    return (
+                                        <button key={o.value} type="button"
+                                            className={`${styles.sortOption}${active ? ` ${styles.sortOptionActive}` : ""}`}
+                                            onClick={() => { setSortBy(o.value); setShowSort(false); }}>
+                                            {o.label}
+                                            {active
+                                                ? <CheckIcon className={styles.sortCheckIcon} />
+                                                : <span style={{ width: 13 }} />}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </>
                     )}
@@ -980,17 +1059,23 @@ export function EvaluacionesPage() {
 
             {/* Body */}
             <div className={styles.body}>
-                {studentGroups.length === 0 ? (
+                {asignaturaGroups.length === 0 ? (
                     <EmptyState
-                        title={records.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}
-                        subtitle={records.length === 0 ? "Agrega estudiantes en la sección Estudiantes" : "Intenta con otros filtros"}
+                        title={records.length === 0 ? "Sin asignaturas registradas" : "Sin resultados"}
+                        subtitle={records.length === 0 ? "Agrega estudiantes y asignaturas primero" : "Intenta con otros filtros"}
                     />
                 ) : (
                     sortedGroups.map((group) => (
-                        <StudentGroup key={group.key} nombre={group.nombre} estudianteId={group.key}
-                            records={group.records} conductaPct={conductaMap.get(group.key) ?? 100}
-                            weights={weights} asigNombreMap={asigNombreMap}
-                            onUpdate={storeUpdate} onDelete={storeDelete} onConductaChange={storeConducta} />
+                        <AsignaturaGroup
+                            key={group.key}
+                            asigNombre={group.nombre}
+                            records={group.records}
+                            conductaMap={conductaMap}
+                            nivelConfig={asigNivelMap.get(group.key) ?? DEFAULT_NIVEL_CONFIG}
+                            onUpdate={storeUpdate}
+                            onDelete={storeDelete}
+                            onConductaChange={storeConducta}
+                        />
                     ))
                 )}
             </div>
@@ -1000,7 +1085,7 @@ export function EvaluacionesPage() {
                 <AddEvalModal
                     records={records}
                     asignaturas={asignaturas}
-                    onSave={(ids, cat, nombre, items, semestre) => { storeAddEval(ids, cat, nombre, items, semestre); setShowAddEval(false); }}
+                    onSave={(ids, cat, nombre, items, semestre, tipo) => { storeAddEval(ids, cat, nombre, items, semestre, tipo); setShowAddEval(false); }}
                     onClose={() => setShowAddEval(false)}
                 />
             )}

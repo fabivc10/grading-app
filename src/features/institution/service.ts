@@ -18,6 +18,21 @@ export async function fetchInstitutions(): Promise<Institution[]> {
     return rows.map(toModel);
 }
 
+export async function updateInstitution(id: number, data: Omit<Institution, "id">): Promise<void> {
+    await repo.update(id, {
+        name:               data.name,
+        code:               data.code,
+        address:            data.address            ?? null,
+        tipo_institucion:   data.tipoInstitucion    ?? null,
+        direccion_regional: data.direccionRegional  ?? null,
+        circuito:           data.circuito           ?? null,
+    });
+}
+
+export async function deleteInstitution(id: number): Promise<void> {
+    await repo.remove(id);
+}
+
 export async function insertInstitution(data: Omit<Institution, "id">): Promise<Institution> {
     const id = await repo.create({
         name:               data.name,

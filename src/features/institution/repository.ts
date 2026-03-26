@@ -16,3 +16,17 @@ export async function create(data: CreateInstitutionDTO): Promise<number> {
     );
     return result.lastInsertId as number;
 }
+
+export async function update(id: number, data: CreateInstitutionDTO): Promise<void> {
+    const db = await getDb();
+    await db.execute(
+        `UPDATE institutions SET name=?, code=?, address=?, tipo_institucion=?, direccion_regional=?, circuito=? WHERE id=?`,
+        [data.name, data.code, data.address ?? null,
+         data.tipo_institucion ?? null, data.direccion_regional ?? null, data.circuito ?? null, id]
+    );
+}
+
+export async function remove(id: number): Promise<void> {
+    const db = await getDb();
+    await db.execute("DELETE FROM institutions WHERE id=?", [id]);
+}

@@ -6,17 +6,18 @@ let _db: Database | null = null;
 let _initPromise: Promise<Database> | null = null;
 
 export async function getDb(): Promise<Database> {
-    if (_db) return _db;
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
-        const db = await Database.load("sqlite:grading.db");
+        const db = _db ?? await Database.load("sqlite:grading.db");
         await runMigrations(db);
         _db = db;
         return db;
     })().catch((err) => {
-        _initPromise = null; // allow retry on next call
+        _initPromise = null;
         throw err;
+    }).finally(() => {
+        _initPromise = null; // always allow next call to re-check migrations
     });
 
     return _initPromise;
@@ -459,6 +460,41 @@ async function runMigrations(db: Database) {
             await db.execute("ALTER TABLE institutions ADD COLUMN circuito TEXT");
         await db.execute("UPDATE schema_version SET version = 16 WHERE id = 1");
     }
+
+    // ── v17–v19 columns — always check regardless of version number ──────────
+    // (version-gating was unreliable if a previous broken run advanced the
+    //  schema_version counter without actually applying the ALTER TABLE)
+    {
+        const estCols = await db.select<{ name: string }[]>("PRAGMA table_info(estudiantes)");
+        const estNames = estCols.map((c) => c.name);
+        if (!estNames.includes("fecha_nacimiento"))
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN fecha_nacimiento TEXT DEFAULT ''");
+        if (!estNames.includes("telefono_estudiante"))
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN telefono_estudiante TEXT DEFAULT ''");
+        if (!estNames.includes("tutor1_nombre"))
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor1_nombre TEXT DEFAULT ''");
+        if (!estNames.includes("tutor1_telefono")) {
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor1_telefono TEXT DEFAULT ''");
+            await db.execute("UPDATE estudiantes SET tutor1_telefono = telefono WHERE telefono IS NOT NULL AND telefono != ''");
+        }
+        if (!estNames.includes("tutor2_nombre"))
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor2_nombre TEXT DEFAULT ''");
+        if (!estNames.includes("tutor2_telefono"))
+            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor2_telefono TEXT DEFAULT ''");
+
+        const asigCols = await db.select<{ name: string }[]>("PRAGMA table_info(asignaturas)");
+        if (!asigCols.map((c) => c.name).includes("created_at"))
+            await db.execute("ALTER TABLE asignaturas ADD COLUMN created_at TEXT DEFAULT ''");
+
+        await db.execute("UPDATE schema_version SET version = 19 WHERE id = 1");
+    }
+
+    // ── always-check: tipo column in eval_entries ─────────────────────────────
+    {
+        const entryCols = await db.select<{ name: string }[]>("PRAGMA table_info(eval_entries)");
+        if (!entryCols.map((c) => c.name).includes("tipo"))
+            await db.execute("ALTER TABLE eval_entries ADD COLUMN tipo TEXT NOT NULL DEFAULT 'numerica'");
+    }
 }
 
 // ─── Default user ─────────────────────────────────────────────────────────────
@@ -622,7 +658,7 @@ async function seedDemoEvalEntries(db: Database) {
                 { nombre:'Inecuaciones', desc:'Resolución de inecuaciones lineales', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Participación S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Participación S. I', semestre:'s1', temas:[
             { tema:'Actitud en clase', items:[
                 { nombre:'Participación oral', desc:'Resolución de problemas en pizarra', valor:5 },
                 { nombre:'Trabajo en equipo', desc:'Colaboración en actividades grupales', valor:5 },
@@ -663,7 +699,7 @@ async function seedDemoEvalEntries(db: Database) {
                 { nombre:'Comparación célula animal/vegetal', desc:'Tabla comparativa', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Trabajo de Laboratorio S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Trabajo de Laboratorio S. I', semestre:'s1', temas:[
             { tema:'Laboratorio', items:[
                 { nombre:'Observación microscópica', desc:'Uso correcto del microscopio', valor:5 },
                 { nombre:'Informe de laboratorio', desc:'Redacción de conclusiones', valor:5 },
@@ -815,7 +851,7 @@ async function seedMoreDemoData(db: Database) {
                 { nombre:'Descripción de eventos', desc:'Síntesis de hitos históricos', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Participación S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Participación S. I', semestre:'s1', temas:[
             { tema:'Clases participativas', items:[
                 { nombre:'Debate histórico', desc:'Argumentación basada en evidencia', valor:5 },
                 { nombre:'Análisis de fuentes', desc:'Lectura crítica de documentos históricos', valor:5 },
@@ -855,7 +891,7 @@ async function seedMoreDemoData(db: Database) {
                 { nombre:'Riqueza vocabular', desc:'Uso de sinónimos y vocabulario variado', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Lectura en clase S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Lectura en clase S. I', semestre:'s1', temas:[
             { tema:'Comprensión lectora', items:[
                 { nombre:'Lectura expresiva', desc:'Entonación y ritmo en la lectura oral', valor:5 },
                 { nombre:'Comprensión del texto', desc:'Respuesta a preguntas sobre el texto leído', valor:5 },
@@ -895,7 +931,7 @@ async function seedMoreDemoData(db: Database) {
                 { nombre:'Cuadro comparativo', desc:'Comparación de civilizaciones precolombinas', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Exposición oral S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Exposición oral S. I', semestre:'s1', temas:[
             { tema:'Comunicación oral', items:[
                 { nombre:'Dominio del tema', desc:'Manejo conceptual del contenido expuesto', valor:5 },
                 { nombre:'Expresión y postura', desc:'Claridad, volumen y lenguaje no verbal', valor:5 },
@@ -935,7 +971,7 @@ async function seedMoreDemoData(db: Database) {
                 { nombre:'Grammar accuracy', desc:'Correct use of studied structures', valor:5 },
             ]},
         ]},
-        { category:'cotidiano', nombre:'Oral Practice S1', semestre:'s1', temas:[
+        { category:'cotidiano', nombre:'Oral Practice S. I', semestre:'s1', temas:[
             { tema:'Speaking', items:[
                 { nombre:'Pronunciation', desc:'Correct pronunciation of vowel and consonant sounds', valor:5 },
                 { nombre:'Fluency', desc:'Ability to communicate ideas without long pauses', valor:5 },

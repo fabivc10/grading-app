@@ -18,7 +18,7 @@
 .input {
     padding: 0.46rem 2rem 0.46rem 2rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.8125rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -40,7 +40,7 @@
     background: none;
     border: none;
     color: var(--tx-3);
-    font-size: 1rem;
+    font-size: 0.875rem;
     cursor: pointer;
     line-height: 1;
     padding: 0 0.2rem;

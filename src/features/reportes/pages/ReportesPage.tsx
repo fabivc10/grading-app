@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useEvaluacionesStore } from "../../evaluaciones/store";
 import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore, selectCurrentInstitution } from "../../institution/store";
+import { useConfiguracionStore } from "../../configuracion/store";
 import type { StudentEval, EvalEntry, TemaItem, EvalCategory, EvalWeights } from "../../evaluaciones/types";
 import type { Asignatura } from "../../asignaturas/types";
 import { ExcelIcon, PdfIcon, BackIcon, ChevronDownIcon } from "../../../shared/ui/icons";
@@ -9,7 +10,7 @@ import styles from "../ReportesPage.module.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Period = "s1" | "s2" | "anual";
-type StudentStatus = "eximido" | "aprobado" | "reprobado";
+type StudentStatus = "excelente" | "muyBuena" | "regular" | "deficiente";
 
 // ─── Score helpers ────────────────────────────────────────────────────────────
 function entryEarned(entry: EvalEntry): number {
@@ -41,9 +42,10 @@ function calcScore(record: StudentEval, conductaPct: number, weights: EvalWeight
     return Math.min(100, Math.max(0, Math.round(total)));
 }
 function getStatus(score: number): StudentStatus {
-    if (score >= 90) return "eximido";
-    if (score >= 70) return "aprobado";
-    return "reprobado";
+    if (score >= 90) return "excelente";
+    if (score >= 80) return "muyBuena";
+    if (score >= 70) return "regular";
+    return "deficiente";
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -59,9 +61,16 @@ const CAT_LABELS: Record<EvalCategory, string> = {
     proyecto:  "Proyecto",
 };
 const STATUS_LABELS: Record<StudentStatus, string> = {
-    eximido:   "Eximido",
-    aprobado:  "Aprobado",
-    reprobado: "Reprobado",
+    excelente:  "Excelente",
+    muyBuena:   "Muy buena",
+    regular:    "Regular",
+    deficiente: "Deficiente",
+};
+const STATUS_CLASS: Record<StudentStatus, string> = {
+    excelente:  "statusExcelente",
+    muyBuena:   "statusMuyBuena",
+    regular:    "statusRegular",
+    deficiente: "statusDeficiente",
 };
 const CATS: EvalCategory[] = ["cotidiano", "tareas", "prueba", "proyecto"];
 
@@ -73,9 +82,8 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 function StatusBadge({ score }: { score: number }) {
-    const s   = getStatus(score);
-    const cls = s === "eximido" ? styles.statusEximido : s === "aprobado" ? styles.statusAprobado : styles.statusReprobado;
-    return <span className={cls}>{STATUS_LABELS[s]}</span>;
+    const s = getStatus(score);
+    return <span className={styles[STATUS_CLASS[s] as keyof typeof styles]}>{STATUS_LABELS[s]}</span>;
 }
 
 function PeriodTabs({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
@@ -301,6 +309,134 @@ function DetailView({
     );
 }
 
+// ─── Nivel names ──────────────────────────────────────────────────────────────
+const NIVEL_NAMES: Record<number, string> = {
+    1: "Primero", 2: "Segundo", 3: "Tercero", 4: "Cuarto",
+    5: "Quinto",  6: "Sexto",   7: "Sétimo",  8: "Octavo",
+    9: "Noveno",  10: "Décimo", 11: "Undécimo", 12: "Duodécimo",
+};
+function nivelLabel(grupo: number): string {
+    return NIVEL_NAMES[grupo] ?? `Grupo ${grupo}`;
+}
+
+// ─── Alertas view ─────────────────────────────────────────────────────────────
+function AlertasNotaView({ period }: { period: Period }) {
+    const { records, cotidianos, weights } = useEvaluacionesStore();
+    const asignaturas  = useAsignaturasStore(s => s.asignaturas);
+    const institution  = useInstitutionStore(selectCurrentInstitution);
+    const cfg          = useConfiguracionStore();
+
+    const thresholds = [cfg.alertaNotaMinima, cfg.alertaNotaMinima2].sort((a, b) => a - b);
+    const [threshold, setThreshold] = useState(thresholds[0]);
+    const [selected,  setSelected]  = useState<Set<string>>(new Set());
+
+    const conductaMap = useMemo(() => {
+        const m = new Map<string, number>();
+        cotidianos.forEach(c => m.set(c.estudianteId, c.conductaPct));
+        return m;
+    }, [cotidianos]);
+
+    const rows = useMemo(() => {
+        return asignaturas.map(asig => {
+            const asigRecords = records.filter(r => r.asignaturaId === asig.id);
+            if (asigRecords.length === 0) return null;
+            const scores = asigRecords.map(r => {
+                const estId = r.estudianteId ?? r.id;
+                return calcScore(r, conductaMap.get(estId) ?? 100, weights, period);
+            });
+            const below = scores.filter(s => s < threshold).length;
+            return {
+                id: asig.id,
+                nivel: Math.trunc(asig.grupo),
+                grupo: Math.trunc(asig.seccion),
+                asignatura: asig.nombre,
+                total: scores.length,
+                below,
+                pct: Math.round((below / scores.length) * 100),
+            };
+        }).filter((r): r is NonNullable<typeof r> => r !== null)
+          .sort((a, b) => a.nivel - b.nivel || a.grupo - b.grupo || a.asignatura.localeCompare(b.asignatura));
+    }, [asignaturas, records, conductaMap, weights, period, threshold]);
+
+    const toggleRow = (id: string) =>
+        setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+    const allSelected = rows.length > 0 && rows.every(r => selected.has(r.id));
+    const toggleAll = () => setSelected(allSelected ? new Set() : new Set(rows.map(r => r.id)));
+
+    return (
+        <div>
+            {/* Threshold picker */}
+            <div className={styles.toolbar} style={{ marginBottom: "0.75rem" }}>
+                <span style={{ fontSize: "var(--fs-sm)", color: "var(--tx-3)", whiteSpace: "nowrap" }}>Umbral:</span>
+                {thresholds.map(t => (
+                    <button key={t} type="button"
+                        className={`${styles.periodTab}${threshold === t ? ` ${styles.periodTabActive}` : ""}`}
+                        onClick={() => setThreshold(t)}>
+                        {t}%
+                    </button>
+                ))}
+            </div>
+
+            {rows.length === 0 ? (
+                <div className={styles.empty}>
+                    <p>Sin datos de evaluaciones</p>
+                    <span>Agrega evaluaciones para ver este reporte.</span>
+                </div>
+            ) : (
+                <div className={styles.tableWrap}>
+                    <table className={styles.summaryTable}>
+                        <thead>
+                            <tr>
+                                <th style={{ width: 32 }}>
+                                    <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                                </th>
+                                <th>Región</th>
+                                <th>Circuito</th>
+                                <th>Institución</th>
+                                <th>Modalidad</th>
+                                <th>Nivel</th>
+                                <th>Grupo</th>
+                                <th className={styles.thName}>Asignatura</th>
+                                <th>% bajo {threshold}%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map(row => {
+                                const danger = row.pct >= 50;
+                                const warn   = !danger && row.pct > 0;
+                                return (
+                                    <tr key={row.id} className={styles.summaryRow}>
+                                        <td>
+                                            <input type="checkbox" checked={selected.has(row.id)}
+                                                onChange={() => toggleRow(row.id)} />
+                                        </td>
+                                        <td className={styles.tdStat}>{institution.direccionRegional ?? "—"}</td>
+                                        <td className={styles.tdStat}>{institution.circuito ?? "—"}</td>
+                                        <td>{institution.name}</td>
+                                        <td className={styles.tdStat}>{institution.tipoInstitucion ?? "—"}</td>
+                                        <td>{nivelLabel(row.nivel)}</td>
+                                        <td className={styles.tdStat}>{row.grupo}</td>
+                                        <td className={styles.tdNameBody}>{row.asignatura}</td>
+                                        <td>
+                                            <span className={danger ? styles.totalDeficiente : warn ? styles.totalRegular : styles.totalExcelente}
+                                                style={{ padding: "0.15rem 0.5rem", borderRadius: 4, fontWeight: 700 }}>
+                                                {row.pct}%
+                                            </span>
+                                            <span style={{ fontSize: "0.72rem", color: "var(--tx-3)", marginLeft: "0.4rem" }}>
+                                                ({row.below}/{row.total})
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export function ReportesPage() {
     const asignaturas  = useAsignaturasStore(s => s.asignaturas);
@@ -310,6 +446,7 @@ export function ReportesPage() {
     const [selectedAsigId,   setSelectedAsigId]   = useState("");
     const [period,           setPeriod]           = useState<Period>("anual");
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+    const [view,             setView]             = useState<"reporte" | "alertas">("reporte");
 
     useEffect(() => { if (institution.id) load(institution.id); }, [institution.id]);
 
@@ -352,27 +489,48 @@ export function ReportesPage() {
                 <div>
                     <h2>Reportes</h2>
                     <p className={styles.countText}>
-                        {filteredRecords.length} estudiante{filteredRecords.length !== 1 ? "s" : ""}
+                        {view === "reporte"
+                            ? `${filteredRecords.length} estudiante${filteredRecords.length !== 1 ? "s" : ""}`
+                            : "Alerta: estudiantes bajo nota mínima"}
                     </p>
                 </div>
-                <ExportButtons />
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <div className={styles.periodTabs}>
+                        <button type="button"
+                            className={`${styles.periodTab}${view === "reporte" ? ` ${styles.periodTabActive}` : ""}`}
+                            onClick={() => setView("reporte")}>
+                            Reporte
+                        </button>
+                        <button type="button"
+                            className={`${styles.periodTab}${view === "alertas" ? ` ${styles.periodTabActive}` : ""}`}
+                            onClick={() => setView("alertas")}>
+                            Alertas
+                        </button>
+                    </div>
+                    <ExportButtons />
+                </div>
             </div>
 
             {/* Toolbar */}
             <div className={styles.toolbar}>
-                <select className={styles.asigSelect} value={asigId}
-                    onChange={e => { setSelectedAsigId(e.target.value); setSelectedRecordId(null); }}>
-                    {asignaturas.map(a => (
-                        <option key={a.id} value={a.id}>
-                            {a.nombre} · Grupo {a.grupo} · Sección {a.seccion}
-                        </option>
-                    ))}
-                </select>
+                {view === "reporte" && (
+                    <select className={styles.asigSelect} value={asigId}
+                        onChange={e => { setSelectedAsigId(e.target.value); setSelectedRecordId(null); }}>
+                        {asignaturas.map(a => (
+                            <option key={a.id} value={a.id}>
+                                {a.nombre} · Grupo {a.grupo} · Sección {a.seccion}
+                            </option>
+                        ))}
+                    </select>
+                )}
                 <PeriodTabs value={period} onChange={setPeriod} />
             </div>
 
+            {/* Alertas view */}
+            {view === "alertas" && <AlertasNotaView period={period} />}
+
             {/* Summary table */}
-            {filteredRecords.length === 0 ? (
+            {view === "alertas" ? null : filteredRecords.length === 0 ? (
                 <div className={styles.empty}>
                     <p>Sin estudiantes en esta asignatura</p>
                     <span>Agrega evaluaciones desde la sección de Evaluaciones.</span>
@@ -411,10 +569,10 @@ export function ReportesPage() {
                                         <td className={styles.tdStat}>{catPctPeriod(rec.prueba, period)}%</td>
                                         <td className={styles.tdStat}>{catPctPeriod(rec.proyecto, period)}%</td>
                                         <td className={styles.tdStat}>{asistPct(rec.asistencia, period)}%</td>
-                                        <td className={`${styles.tdTotal} ${score >= 90 ? styles.totalEximido : score >= 70 ? styles.totalAprobado : styles.totalReprobado}`}>
+                                        <td className={`${styles.tdTotal} ${score >= 90 ? styles.totalExcelente : score >= 80 ? styles.totalMuyBuena : score >= 70 ? styles.totalRegular : styles.totalDeficiente}`}>
                                             {score}
                                         </td>
-                                        <td><StatusBadge score={score} /></td>
+                                        <td className={styles.tdStat}><StatusBadge score={score} /></td>
                                     </tr>
                                 );
                             })}

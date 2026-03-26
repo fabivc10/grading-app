@@ -2,7 +2,7 @@
 .page {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0;
     height: 100%;
     overflow: hidden;
 }
@@ -28,7 +28,7 @@
     flex-direction: column;
     gap: 0;
     border: 1px solid var(--bd);
-    border-radius: 10px;
+    border-radius: 4px;
     background: var(--surface);
     overflow-y: auto;
 }
@@ -45,29 +45,30 @@
     justify-content: space-between;
     gap: 1rem;
     width: 100%;
-    padding: 1rem 1.25rem;
-    background: none;
+    padding: 0.55rem 1rem;
+    background: var(--surface-2);
     border: none;
     cursor: pointer;
     text-align: left;
     transition: background 0.12s;
 }
-.sectionHead:hover { background: var(--surface-2); }
+.sectionHead:hover { background: var(--surface-3, var(--surface-2)); filter: brightness(1.05); }
 
 .sectionHeadText {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.15rem;
 }
 .sectionTitle {
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
     color: var(--tx-1);
+    letter-spacing: 0.01em;
 }
 .sectionDesc {
-    font-size: 0.775rem;
+    font-size: 0.72rem;
     color: var(--tx-3);
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
 .chevron {
@@ -81,6 +82,7 @@
 .sectionBody {
     border-top: 1px solid var(--bd);
     background: var(--surface);
+    border-left: 2px solid var(--bd);
 }
 
 /* ── Setting row ── */
@@ -88,8 +90,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 2rem;
-    padding: 0.85rem 1.25rem;
+    gap: 1.5rem;
+    padding: 0.3rem 1rem;
     border-bottom: 1px solid var(--bd);
 }
 .settingRow:last-of-type { border-bottom: none; }
@@ -101,13 +103,14 @@
     flex: 1;
 }
 .settingLabel > span:first-child {
-    font-size: 0.825rem;
-    font-weight: 500;
-    color: var(--tx-1);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--tx-2);
 }
 .settingHint {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--tx-3);
+    line-height: 1.35;
 }
 
 .settingControl {
@@ -123,16 +126,16 @@
     gap: 0.4rem;
 }
 .numInput {
-    width: 72px;
-    padding: 0.38rem 0.55rem;
+    width: 5.5ch;
+    padding: 0.35rem 6px 0.35rem calc(0.25rem + 6px);
     border: 1px solid var(--input-bd);
     border-radius: var(--radius-sm);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 500;
     color: var(--tx-1);
     background: var(--input-bg);
     outline: none;
-    text-align: right;
+    text-align: center;
     transition: border-color 0.12s, box-shadow 0.12s;
     color-scheme: light dark;
 }
@@ -141,15 +144,28 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 .numInput:disabled { opacity: 0.38; cursor: not-allowed; }
+.numInput::-webkit-inner-spin-button {
+    -webkit-appearance: auto;
+    opacity: 0;
+    width: 6px;
+    cursor: pointer;
+}
+.numInput::-webkit-outer-spin-button { -webkit-appearance: auto; opacity: 0; width: 0; }
+.numInput:hover::-webkit-inner-spin-button,
+.numInput:focus::-webkit-inner-spin-button { opacity: 1; }
 .numUnit {
     font-size: 0.775rem;
     color: var(--tx-3);
     min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 /* ── Sum row ── */
 .sumRow {
-    padding: 0.65rem 1.25rem;
+    padding: 0.4rem 1rem;
     font-size: 0.78rem;
     border-bottom: 1px solid var(--bd);
 }
@@ -166,8 +182,8 @@
 .savedRow {
     display: flex;
     justify-content: flex-end;
-    padding: 0.6rem 1.25rem;
-    min-height: 2.25rem;
+    padding: 0.35rem 1rem;
+    min-height: 1.5rem;
 }
 
 /* ── Toggle ── */
@@ -180,34 +196,238 @@
 }
 .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggleTrack {
-    width: 38px;
-    height: 22px;
-    background: var(--surface-3, #ccc);
-    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    height: 26px;
+    padding: 0 0.5rem;
+    border-radius: 3px;
+    border: 1.5px solid var(--bd-2);
+    background: var(--surface-2);
+    color: var(--tx-3);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.toggleTrack::after { content: "Inactiva"; }
+.toggle input:checked ~ .toggleTrack {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.toggle input:checked ~ .toggleTrack::after { content: "Activa"; }
+.toggleThumb { display: none; }
+
+/* ── Umbral bars ── */
+.umbralSection {
+    padding: 0.55rem 1rem 0.45rem;
+    border-bottom: 1px solid var(--bd);
+}
+.rangosRow {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.4rem 1rem;
+}
+.rangoItem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.rangoLabel {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--tx-2);
+    white-space: nowrap;
+}
+.umbralHint {
+    font-size: 0.72rem;
+    color: var(--tx-3);
+    margin: 0 0 0.45rem;
+    line-height: 1.45;
+}
+.umbralLabel {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--tx-3);
+    margin-bottom: 0.4rem;
+    opacity: 0.7;
+}
+.umbralBar {
     position: relative;
-    transition: background 0.2s;
-    border: 1px solid transparent;
+    height: 10px;
+    border-radius: 3px;
+    overflow: visible;
+    cursor: crosshair;
+    user-select: none;
+    margin-top: 2.4rem;
+    background: #1a1a1a;
+    border: 1px solid #333333;
 }
-.toggle input:checked ~ .toggleTrack { background: var(--accent); }
-.toggleThumb {
+.umbralSegment {
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 16px;
-    height: 16px;
-    background: white;
-    border-radius: 50%;
-    transition: transform 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    top: 1px;
+    bottom: 1px;
+    background: #ffffff;
+    pointer-events: none;
 }
-.toggle input:checked ~ .toggleTrack .toggleThumb { transform: translateX(16px); }
+.umbralThreshLine {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #1a1a1a;
+    transform: translateX(-1px);
+    pointer-events: none;
+    z-index: 1;
+}
+.umbralMarker {
+    position: absolute;
+    bottom: 100%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    z-index: 1;
+    margin-bottom: 2px;
+    transition: z-index 0s;
+}
+.umbralMarker:hover { z-index: 10; }
+.umbralMarkerRow {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    background: #252525;
+    border: 1px solid #383838;
+    border-radius: 5px;
+    padding: 0.18rem 0.3rem;
+}
+.umbralConnector {
+    width: 1.5px;
+    height: 5px;
+    background: #1a1a1a;
+    flex-shrink: 0;
+}
+.umbralDragHandle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: grab;
+    padding: 0;
+    flex-shrink: 0;
+}
+.umbralDragHandle:hover { color: #d1d5db; }
+.umbralDragHandle:active { cursor: grabbing; }
+.umbralValInput {
+    width: 40px;
+    padding: 0.08rem 0.1rem;
+    border: none;
+    border-radius: 3px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    color: #9ca3af;
+    background: #333333;
+    outline: none;
+    color-scheme: dark;
+}
+.umbralValInput:focus { background: #3d3d3d; color: #d1d5db; }
+.umbralValUnit {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #6b7280;
+}
+.umbralRemoveBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+.umbralRemoveBtn svg { width: 11px; height: 11px; }
+.umbralRemoveBtn:hover { color: var(--danger); }
+.umbralScale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: var(--tx-3);
+    margin-top: 0.2rem;
+}
 
 /* ── Alert control ── */
 .alertControl {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
 }
+.alertRow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.42rem 1rem;
+    border-bottom: 1px solid var(--bd);
+}
+.alertRowOff { opacity: 0.5; }
+.alertLabel {
+    font-size: 0.78rem;
+    color: var(--tx-3);
+    white-space: nowrap;
+}
+.alertRemoveBtn {
+    margin-left: auto;
+    width: 22px; height: 22px;
+    border: none; border-radius: 3px;
+    font-size: 0.72rem;
+    color: var(--tx-3);
+    background: transparent;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s, color 0.1s;
+}
+.alertRemoveBtn:hover { background: var(--danger-bg); color: var(--danger); }
+.alertAddRow {
+    padding: 0.42rem 1rem;
+}
+.alertAddBtn {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: transparent;
+    border: 1.5px dashed var(--bd-2);
+    border-radius: 3px;
+    padding: 0.25rem 0.65rem;
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+}
+.alertAddBtn:hover { border-color: var(--accent); background: var(--accent-subtle); }
+.resetBtn {
+    font-size: 0.75rem;
+    color: var(--tx-3);
+    background: transparent;
+    border: 1px solid var(--bd-2);
+    border-radius: 3px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    transition: color 0.1s, border-color 0.1s;
+}
+.resetBtn:hover { color: var(--tx-1); border-color: var(--tx-3); }
 
 /* ── Priority select ── */
 .prioritySelect {
@@ -226,45 +446,180 @@
 .prioritySelect:focus { border-color: var(--accent); }
 .prioritySelect:disabled { opacity: 0.38; cursor: not-allowed; }
 
-/* ── Semestres ── */
-.semGroup {
+/* ── Nivel chips ── */
+.nivelChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
     border-bottom: 1px solid var(--bd);
 }
-.semGroup:last-of-type { border-bottom: none; }
-.semGroupLabel {
-    padding: 0.55rem 1.25rem 0.3rem;
-    font-size: var(--fs-xs);
+.nivelChip {
+    padding: 0.28rem 0.65rem;
+    border: 1.5px solid var(--bd-2);
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--tx-2);
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+.nivelChip:hover { border-color: var(--accent); color: var(--accent); }
+.nivelChipActive {
+    border-color: var(--accent) !important;
+    color: var(--accent-fg) !important;
+    background: var(--accent) !important;
+}
+
+/* ── Nivel compact form ── */
+.nivelForm {
+    padding: 0.35rem 1rem;
+    border-bottom: 1px solid var(--bd);
+    background: var(--surface-2);
+}
+.nivelFormGrid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 0;
+}
+.nivelFormCell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0 0.9rem;
+    border-left: 1px solid var(--bd);
+}
+.nivelFormCellLast { border-right: 1px solid var(--bd); }
+.nivelFormLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--tx-3);
+}
+.nivelFormActions {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+.nivelInputGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.nivelInputSep {
+    font-size: 0.72rem;
+    color: var(--tx-3);
+}
+.nivelTotal { font-size: 0.78rem; white-space: nowrap; }
+.nivelSaveBtn {
+    padding: 0.3rem 0.7rem;
+    border: none;
+    border-radius: 3px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--accent-fg);
+    cursor: pointer;
+    transition: background 0.1s;
+    white-space: nowrap;
+}
+.nivelSaveBtn:hover { background: var(--accent-hover); }
+.nivelSaveBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Summary table ── */
+.nivelSummary {
+    display: flex;
+    flex-direction: column;
+}
+.nivelSummaryHead {
+    display: grid;
+    grid-template-columns: 160px repeat(5, 1fr);
+    gap: 0.5rem;
+    padding: 0.3rem 1rem;
+    font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     color: var(--tx-3);
     background: var(--surface-2);
+    border-top: 1px solid var(--bd);
+    text-align: center;
+}
+.nivelSummaryHead span:first-child { text-align: left; }
+.nivelSummaryRow {
+    display: grid;
+    grid-template-columns: 160px repeat(5, 1fr);
+    gap: 0.5rem;
+    padding: 0.32rem 1rem;
+    font-size: 0.78rem;
+    color: var(--tx-2);
+    border-top: 1px solid var(--bd);
+    cursor: pointer;
+    transition: background 0.1s;
+    text-align: center;
+}
+.nivelSummaryRow:hover { background: var(--surface-2); }
+.nivelSummaryRowActive { background: var(--accent-subtle) !important; color: var(--accent-subtle-fg); }
+.nivelSummaryGrupo { font-weight: 600; color: var(--tx-1); text-align: left; }
+
+/* ── Semestres ── */
+.semCompact {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.semCompactRow {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.38rem 1rem;
     border-bottom: 1px solid var(--bd);
+}
+.semCompactRow:last-of-type { border-bottom: none; }
+.semCompactLabel {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tx-2);
+    min-width: 90px;
+}
+.semCompactSep {
+    font-size: 0.75rem;
+    color: var(--tx-3);
+}
+.semCompactSaved {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.3rem 1rem;
+    min-height: 1.25rem;
 }
 .dateWrap {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.35rem;
     align-items: center;
 }
 .dateWrap select {
-    padding: 0.38rem 0.55rem;
+    padding: 0.3rem 0.3rem;
     border: 1px solid var(--input-bd);
     border-radius: var(--radius-sm);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--tx-1);
     background: var(--input-bg);
     outline: none;
     transition: border-color 0.12s;
     color-scheme: light dark;
-    min-width: 110px;
+    min-width: 88px;
 }
 .dateWrap select:focus { border-color: var(--accent); }
 .dayInput {
-    width: 68px !important;
-    padding: 0.38rem 0.55rem;
+    width: 5.5ch !important;
+    padding: 0.3rem 0.25rem;
     border: 1px solid var(--input-bd);
     border-radius: var(--radius-sm);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--tx-1);
     background: var(--input-bg);
     outline: none;
@@ -273,3 +628,12 @@
     text-align: center;
 }
 .dayInput:focus { border-color: var(--accent); }
+.dayInput::-webkit-inner-spin-button {
+    -webkit-appearance: auto;
+    opacity: 0;
+    width: 6px;
+    cursor: pointer;
+}
+.dayInput::-webkit-outer-spin-button { -webkit-appearance: auto; opacity: 0; width: 0; }
+.dayInput:hover::-webkit-inner-spin-button,
+.dayInput:focus::-webkit-inner-spin-button { opacity: 1; }

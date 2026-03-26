@@ -20,19 +20,19 @@
     width: 32px;
     height: 32px;
     background: var(--sb-tx-active);
-    border-radius: 7px;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: var(--sb-bg);
     flex-shrink: 0;
 }
 
 .brandName {
     font-weight: 700;
-    font-size: 0.9375rem;
+    font-size: 0.85rem;
     color: var(--sb-tx-active);
 }
 
@@ -51,9 +51,9 @@
     align-items: center;
     gap: 0.7rem;
     padding: 0.575rem 0.875rem;
-    border-radius: 7px;
+    border-radius: 3px;
     color: var(--sb-tx);
-    font-size: 0.875rem;
+    font-size: 0.825rem;
     font-weight: 500;
     text-decoration: none;
     transition: background 0.12s, color 0.12s;
@@ -90,7 +90,7 @@
 .addInstBtn {
     width: 20px;
     height: 20px;
-    border-radius: 5px;
+    border-radius: 3px;
     background: var(--sb-hover);
     display: flex;
     align-items: center;
@@ -109,7 +109,7 @@
     gap: 0.6rem;
     width: 100%;
     padding: 0.55rem 0.625rem;
-    border-radius: 7px;
+    border-radius: 3px;
     background: var(--sb-hover);
     cursor: pointer;
     border: 1px solid var(--sb-bd);
@@ -122,7 +122,7 @@
     height: 30px;
     background: var(--sb-active);
     border: 1px solid var(--sb-bd);
-    border-radius: 6px;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -150,29 +150,87 @@
 /* ── Dropdown ── */
 .dropdown {
     position: absolute;
-    bottom: calc(100% + 4px);
+    bottom: calc(100% + 6px);
     left: 0; right: 0;
-    background: var(--sb-hover);
+    background: var(--sb-bg, #1a1a2e);
     border: 1px solid var(--sb-bd);
-    border-radius: 9px;
-    padding: 0.3rem;
-    box-shadow: var(--shadow-lg);
+    border-radius: 4px;
+    padding: 0.25rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     z-index: 50;
 }
 
+/* each institution row */
+.dropdownRow {
+    display: flex; align-items: center; gap: 0.25rem;
+    padding: 0.3rem 0.35rem;
+    border-radius: 3px;
+    transition: background 0.1s;
+}
+.dropdownRow:hover { background: rgba(255,255,255,0.06); }
+.dropdownRow:hover .dropdownActions { opacity: 1; pointer-events: auto; }
+
+/* left: avatar + name (click to switch) */
 .dropdownItem {
     display: flex; align-items: center; gap: 0.55rem;
-    width: 100%; padding: 0.45rem 0.5rem;
-    border-radius: 6px; cursor: pointer;
-    color: var(--sb-tx); font-size: 0.8125rem; font-weight: 500;
-    transition: background 0.1s; background: none; border: none;
+    flex: 1; min-width: 0;
+    background: none; border: none; cursor: pointer;
+    color: var(--sb-tx); text-align: left; padding: 0;
 }
-.dropdownItem:hover   { background: var(--sb-active); color: #aaaaaa; }
-.dropdownItem.selected { background: var(--sb-active); color: var(--sb-tx-active); }
 
-.dropdownItem .instAvatar { width: 24px; height: 24px; font-size: 0.5rem; }
+.dropdownItemName {
+    flex: 1; min-width: 0;
+    font-size: 0.8125rem; font-weight: 500; line-height: 1.35;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--sb-tx); text-align: center;
+}
+.dropdownRow:hover .dropdownItemName  { color: #fff; }
+.dropdownItem.selected .dropdownItemName { color: var(--sb-tx-active); font-weight: 600; }
 
-.checkIcon { margin-left: auto; width: 13px; height: 13px; color: var(--sb-tx-active); }
+.dropdownItem .instAvatar { width: 26px; height: 26px; font-size: 0.5rem; flex-shrink: 0; }
+
+.checkIcon { width: 13px; height: 13px; color: var(--sb-tx-active); flex-shrink: 0; }
+
+/* right: action buttons — invisible until hover */
+.dropdownActions {
+    display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+.dropdownActionBtn {
+    display: flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border: none; border-radius: 4px;
+    background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.8);
+    cursor: pointer; transition: background 0.1s, color 0.1s;
+}
+.dropdownActionBtn svg { width: 10px; height: 10px; }
+.dropdownActionBtn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.dropdownActionDel:hover { background: rgba(239,68,68,0.25) !important; color: #f87171 !important; }
+
+/* delete confirmation inline */
+.deleteConfirmRow {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 3px;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.25);
+}
+.deleteConfirmRow span {
+    flex: 1; font-size: 0.75rem; color: #fca5a5; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.confirmYes {
+    padding: 0.22rem 0.6rem; border: none; border-radius: 4px;
+    background: #ef4444; color: #fff; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: background 0.1s; flex-shrink: 0;
+}
+.confirmYes:hover { background: #dc2626; }
+.confirmNo {
+    padding: 0.22rem 0.6rem; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+    background: transparent; color: rgba(255,255,255,0.6); font-size: 0.72rem; cursor: pointer;
+    transition: border-color 0.1s, color 0.1s; flex-shrink: 0;
+}
+.confirmNo:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
 
 /* ── Add institution modal (inside sidebar) ── */
 .instModal {
@@ -192,7 +250,7 @@
 .instModalCard {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 14px;
+    border-radius: 4px;
     width: 100%;
     max-width: 420px;
     box-shadow: var(--shadow-lg);
@@ -209,10 +267,10 @@
     padding: 1rem 1.125rem 0.875rem;
     border-bottom: 1px solid var(--bd);
 }
-.instModalTitle { font-size: 0.9375rem; font-weight: 700; color: var(--tx-1); }
+.instModalTitle { font-size: 0.85rem; font-weight: 700; color: var(--tx-1); }
 
 .instModalClose {
-    width: 28px; height: 28px; border-radius: 6px; border: none;
+    width: 28px; height: 28px; border-radius: 3px; border: none;
     background: transparent; cursor: pointer; display: flex;
     align-items: center; justify-content: center; color: var(--tx-3);
     transition: background 0.12s;
@@ -230,7 +288,7 @@
 .instField input {
     padding: 0.5rem 0.7rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.875rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -246,7 +304,7 @@
 .instField select {
     padding: 0.5rem 0.7rem;
     border: 1.5px solid var(--input-bd);
-    border-radius: 7px;
+    border-radius: 3px;
     font-size: 0.875rem;
     color: var(--tx-1);
     background: var(--input-bg);
@@ -255,6 +313,47 @@
     color-scheme: light dark;
     cursor: pointer;
 }
+
+/* ── Grouped tipo dropdown ── */
+.tipoDropdown { position: relative; }
+
+.tipoTrigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    width: 100%; padding: 0.5rem 0.7rem;
+    border: 1.5px solid var(--input-bd); border-radius: 3px;
+    font-size: 0.875rem; color: var(--tx-1); background: var(--input-bg);
+    cursor: pointer; text-align: left; transition: border-color 0.15s;
+}
+.tipoTrigger:focus { border-color: var(--input-focus); box-shadow: 0 0 0 3px rgba(0,0,0,0.06); outline: none; }
+.tipoPlaceholder { color: var(--tx-3); }
+
+.tipoPanel {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
+    background: var(--surface); border: 1.5px solid var(--bd);
+    border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    max-height: 280px; overflow-y: auto;
+    padding: 0.25rem 0;
+}
+
+.tipoGroup { padding: 0.35rem 0; }
+.tipoGroupBorder { border-top: 1px solid var(--bd); margin-top: 0.1rem; }
+
+.tipoGroupLabel {
+    display: block;
+    padding: 0.3rem 0.75rem 0.2rem;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--tx-3); text-transform: uppercase;
+}
+
+.tipoOption {
+    display: block; width: 100%; text-align: left;
+    padding: 0.38rem 0.75rem 0.38rem 1rem;
+    font-size: 0.85rem; color: var(--tx-2);
+    background: transparent; border: none; cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+}
+.tipoOption:hover { background: var(--surface-2); color: var(--tx-1); }
+.tipoOptionActive { color: var(--accent) !important; font-weight: 600; background: var(--accent-subtle) !important; }
 
 .instModalFooter {
     display: flex; gap: 0.5rem; justify-content: flex-end;
@@ -266,7 +365,7 @@
 .instCancelBtn {
     padding: 0.475rem 0.875rem;
     border: 1.5px solid var(--bd-2);
-    border-radius: 7px; font-size: 0.8125rem; font-weight: 500;
+    border-radius: 3px; font-size: 0.8125rem; font-weight: 500;
     color: var(--tx-2); background: var(--surface); cursor: pointer;
 }
 .instCancelBtn:hover { border-color: var(--tx-3); }
@@ -274,7 +373,7 @@
 .instSaveBtn {
     padding: 0.475rem 1rem;
     background: var(--accent); color: var(--accent-fg);
-    border: none; border-radius: 7px;
+    border: none; border-radius: 3px;
     font-size: 0.8125rem; font-weight: 600; cursor: pointer;
     transition: background 0.12s;
 }

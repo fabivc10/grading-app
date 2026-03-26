@@ -3,7 +3,7 @@
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 1.25rem;
 }
-.headerLeft h2 { font-size: 1.25rem; font-weight: 700; color: var(--tx-1); }
+.headerLeft h2 { font-size: 1.05rem; font-weight: 700; color: var(--tx-1); }
 .headerLeft p  { font-size: var(--fs-base); color: var(--tx-3); margin-top: 0.15rem; }
 
 .addBtn {
@@ -55,7 +55,7 @@
 .filterPopover {
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
     background: var(--surface); border: 1px solid var(--bd);
-    border-radius: 10px; box-shadow: var(--shadow-lg);
+    border-radius: 4px; box-shadow: var(--shadow-lg);
     padding: 0.75rem; min-width: 200px;
     display: flex; flex-direction: column; gap: 0.5rem;
     animation: fadeIn 0.15s ease;
@@ -70,6 +70,13 @@
     outline: none; cursor: pointer; transition: border-color 0.12s;
 }
 .filterPopoverRow select:focus { border-color: var(--input-focus); }
+.filterPopoverRow input[type="text"] {
+    padding: 0.36rem 0.6rem;
+    border: 1.5px solid var(--input-bd); border-radius: var(--radius-sm);
+    font-size: var(--fs-sm); color: var(--tx-1); background: var(--input-bg);
+    outline: none; transition: border-color 0.12s; width: 100%;
+}
+.filterPopoverRow input[type="text"]:focus { border-color: var(--input-focus); }
 
 .filterClearBtn {
     align-self: flex-start; padding: 0.28rem 0.65rem;
@@ -103,7 +110,7 @@
 .card {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 11px;
+    border-radius: 4px;
     padding: 0.9rem;
     display: flex; flex-direction: column; gap: 0.55rem;
     transition: box-shadow 0.15s, transform 0.15s;
@@ -116,13 +123,13 @@
 .yearBadge {
     font-size: 0.68rem; font-weight: 700;
     color: var(--accent-subtle-fg); background: var(--accent-subtle);
-    padding: 0.175rem 0.5rem; border-radius: 20px;
+    padding: 0.175rem 0.5rem; border-radius: 4px;
 }
 
 .cardActions { display: flex; gap: 0.15rem; }
 
 .iconBtn {
-    width: 26px; height: 26px; border-radius: 5px;
+    width: 26px; height: 26px; border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     border: none; cursor: pointer; color: var(--tx-3);
     background: transparent; transition: background 0.1s;
@@ -149,7 +156,7 @@
 .semBadge {
     font-size: 0.68rem; font-weight: 500; color: var(--tx-2);
     background: var(--surface-2); border: 1px solid var(--bd);
-    padding: 0.125rem 0.45rem; border-radius: 20px;
+    padding: 0.125rem 0.45rem; border-radius: 4px;
 }
 
 /* ── Delete confirm ── */

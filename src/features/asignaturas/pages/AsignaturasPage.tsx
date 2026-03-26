@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { useAsignaturasStore } from "../store";
 import { useInstitutionStore } from "../../institution/store";
+import { useConfiguracionStore } from "../../configuracion/store";
 import type { Asignatura, Semestre, AsignaturaFormData } from "../types";
-import { PlusIcon, EditIcon, TrashIcon, UsersIcon, BookIcon, SortIcon, CheckIcon, FilterIcon } from "../../../shared/ui/icons";
+import { PlusIcon, EditIcon, TrashIcon, UsersIcon, BookIcon, SortIcon, ChevronDownIcon, FilterIcon } from "../../../shared/ui/icons";
 import { SearchInput } from "../../../shared/ui/SearchInput";
 import { Modal } from "../../../shared/ui/Modal";
 import { EmptyState } from "../../../shared/ui/EmptyState";
@@ -10,14 +11,12 @@ import { FormField } from "../../../shared/ui/FormField";
 import styles from "../AsignaturasPage.module.css";
 
 
-const SORT_OPTIONS = [
-    { value: "az",       label: "Nombre A→Z" },
-    { value: "za",       label: "Nombre Z→A" },
-    { value: "lec-desc", label: "Más lecciones" },
-    { value: "lec-asc",  label: "Menos lecciones" },
-    { value: "año-desc", label: "Año más reciente" },
-    { value: "año-asc",  label: "Año más antiguo" },
-] as const;
+type SortKey = "nombre" | "lecciones" | "creacion";
+const SORT_LABELS: Record<SortKey, string> = {
+    nombre:    "Alfabéticamente",
+    lecciones: "Lecciones",
+    creacion:  "Fecha de creación",
+};
 
 // ─── Modal state ──────────────────────────────────────────────────────────────
 type ModalState = AsignaturaFormData & { id?: string; semestres?: [Semestre, Semestre] };
@@ -71,14 +70,52 @@ function AsignaturaCard({
 function AsignaturaModal({
     initial, onSave, onClose,
 }: { initial: ModalState; onSave: (data: AsignaturaFormData, id?: string, semestres?: [Semestre, Semestre]) => void; onClose: () => void }) {
+    const maxLecciones = useConfiguracionStore((s) => s.defaultLecciones);
     const [form, setForm] = useState<AsignaturaFormData>({
-        año: initial.año, nombre: initial.nombre, grupo: initial.grupo, seccion: initial.seccion ?? 1, lecciones: initial.lecciones,
+        año: new Date().getFullYear(), nombre: initial.nombre, grupo: initial.grupo, seccion: initial.seccion ?? 1, lecciones: initial.lecciones,
     });
+    const [leccionesStr, setLeccionesStr] = useState(String(initial.lecciones));
+    const [grupoStr,     setGrupoStr]     = useState(String(initial.grupo));
+    const [seccionStr,   setSeccionStr]   = useState(String(initial.seccion ?? 1));
+
     const isEdit = Boolean(initial.id);
-    const set = (key: keyof AsignaturaFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-        const v = e.target.type === "number" ? Number(e.target.value) : e.target.value;
-        setForm((f) => ({ ...f, [key]: v }));
+
+    const setNombre = (e: React.ChangeEvent<HTMLInputElement>) =>
+        setForm((f) => ({ ...f, nombre: e.target.value }));
+
+    const makeNumHandlers = (
+        key: "lecciones" | "grupo" | "seccion",
+        setStr: React.Dispatch<React.SetStateAction<string>>,
+    ) => ({
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+            setStr(e.target.value);
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && !isNaN(n)) setForm((f) => ({ ...f, [key]: n }));
+        },
+        onBlur: (e: React.ChangeEvent<HTMLInputElement>) => {
+            const n = Number(e.target.value);
+            const val = e.target.value === "" || isNaN(n) || n < 1 ? 1 : n;
+            setStr(String(val));
+            setForm((f) => ({ ...f, [key]: val }));
+        },
+    });
+
+    const leccionesH = {
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+            setLeccionesStr(e.target.value);
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && !isNaN(n)) setForm((f) => ({ ...f, lecciones: Math.min(n, maxLecciones) }));
+        },
+        onBlur: (e: React.ChangeEvent<HTMLInputElement>) => {
+            const n = Number(e.target.value);
+            const val = e.target.value === "" || isNaN(n) || n < 1 ? 1 : Math.min(n, maxLecciones);
+            setLeccionesStr(String(val));
+            setForm((f) => ({ ...f, lecciones: val }));
+        },
     };
+    const grupoH     = makeNumHandlers("grupo",     setGrupoStr);
+    const seccionH   = makeNumHandlers("seccion",   setSeccionStr);
+
     const valid = form.nombre.trim() !== "" && form.grupo > 0 && form.seccion > 0 && form.lecciones > 0;
 
     const footer = (
@@ -94,22 +131,19 @@ function AsignaturaModal({
         <Modal open onClose={onClose} title={isEdit ? "Editar asignatura" : "Nueva asignatura"} footer={footer}>
             <form id="asignatura-form" style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }} onSubmit={(e) => { e.preventDefault(); if (valid) onSave(form, initial.id, initial.semestres); }}>
                 <div className={styles.row2}>
-                    <FormField label="Año" required>
-                        <input className={styles.formInput} type="number" value={form.año} onChange={set("año")} min={2000} max={2100} required />
+                    <FormField label="Nombre de la asignatura" required>
+                        <input className={styles.formInput} type="text" placeholder="Ej: Matemáticas II" value={form.nombre} onChange={setNombre} autoFocus required />
                     </FormField>
                     <FormField label="# Lecciones" required>
-                        <input className={styles.formInput} type="number" value={form.lecciones} onChange={set("lecciones")} min={1} max={500} required />
+                        <input className={styles.formInput} type="number" value={leccionesStr} min={1} max={maxLecciones} {...leccionesH} required />
                     </FormField>
                 </div>
-                <FormField label="Nombre de la asignatura" required>
-                    <input className={styles.formInput} type="text" placeholder="Ej: Matemáticas II" value={form.nombre} onChange={set("nombre")} autoFocus required />
-                </FormField>
                 <div className={styles.row2}>
                     <FormField label="Grupo" required>
-                        <input className={styles.formInput} type="number" min={1} max={12} value={form.grupo} onChange={set("grupo")} required />
+                        <input className={styles.formInput} type="number" min={1} max={12} value={grupoStr} {...grupoH} required />
                     </FormField>
                     <FormField label="Sección" required>
-                        <input className={styles.formInput} type="number" min={1} placeholder="1" value={form.seccion} onChange={set("seccion")} required />
+                        <input className={styles.formInput} type="number" min={1} placeholder="1" value={seccionStr} {...seccionH} required />
                     </FormField>
                 </div>
                 {!isEdit && (
@@ -130,34 +164,37 @@ function AsignaturaModal({
 export function AsignaturasPage() {
     const { asignaturas, addAsignatura, updateAsignatura, deleteAsignatura } = useAsignaturasStore();
     const institutionId = useInstitutionStore((s) => s.currentId);
+    const defaultLecciones = useConfiguracionStore((s) => s.defaultLecciones);
     const [modal, setModal] = useState<ModalState | null>(null);
 
     const [search,      setSearch]      = useState("");
-    const [filterGrupo, setFilterGrupo] = useState("");
-    const [filterAño,   setFilterAño]   = useState("");
-    const [sort,        setSort]        = useState<typeof SORT_OPTIONS[number]["value"]>("az");
+    const [filterGrupo,   setFilterGrupo]   = useState("");
+    const [filterAño,     setFilterAño]     = useState("");
+    const [filterSeccion, setFilterSeccion] = useState("");
+    const [sortKey, setSortKey] = useState<SortKey>("creacion");
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [showFilters, setShowFilters] = useState(false);
     const [showSort,    setShowSort]    = useState(false);
 
-    const activeFilterCount = [filterGrupo, filterAño].filter(Boolean).length;
+    const activeFilterCount = [filterGrupo, filterAño, filterSeccion].filter(Boolean).length;
 
-    const grupos = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort((a, b) => a - b), [asignaturas]);
-    const años   = useMemo(() => [...new Set(asignaturas.map((a) => a.año))].sort((a, b) => b - a), [asignaturas]);
+    const grupos   = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort((a, b) => a - b), [asignaturas]);
+    const años     = useMemo(() => [...new Set(asignaturas.map((a) => a.año))].sort((a, b) => b - a), [asignaturas]);
+    const secciones = useMemo(() => [...new Set(asignaturas.map((a) => a.seccion ?? 1))].sort((a, b) => a - b), [asignaturas]);
 
     const filtered = useMemo(() => {
         let list = asignaturas
-            .filter((a) => a.nombre.toLowerCase().includes(search.toLowerCase()) || String(a.grupo).includes(search))
-            .filter((a) => filterGrupo ? String(a.grupo) === filterGrupo : true)
-            .filter((a) => filterAño   ? a.año === Number(filterAño) : true);
+            .filter((a) => a.nombre.toLowerCase().includes(search.toLowerCase()) || String(a.grupo).includes(search) || String(a.seccion).includes(search))
+            .filter((a) => filterGrupo   ? String(a.grupo)   === filterGrupo   : true)
+            .filter((a) => filterAño     ? a.año === Number(filterAño)          : true)
+            .filter((a) => filterSeccion ? String(a.seccion) === filterSeccion  : true);
         return [...list].sort((a, b) => {
-            if (sort === "az")       return a.nombre.localeCompare(b.nombre);
-            if (sort === "za")       return b.nombre.localeCompare(a.nombre);
-            if (sort === "lec-desc") return b.lecciones - a.lecciones;
-            if (sort === "lec-asc")  return a.lecciones - b.lecciones;
-            if (sort === "año-desc") return b.año - a.año;
-            return a.año - b.año;
+            const mul = sortDir === "asc" ? 1 : -1;
+            if (sortKey === "nombre")    return mul * a.nombre.localeCompare(b.nombre);
+            if (sortKey === "lecciones") return mul * (a.lecciones - b.lecciones);
+            return mul * a.created_at.localeCompare(b.created_at);
         });
-    }, [asignaturas, search, filterGrupo, filterAño, sort]);
+    }, [asignaturas, search, filterGrupo, filterAño, filterSeccion, sortKey, sortDir]);
 
     const openEdit = (a: Asignatura) =>
         setModal({ id: a.id, año: a.año, nombre: a.nombre, grupo: a.grupo, seccion: a.seccion, lecciones: a.lecciones, semestres: a.semestres });
@@ -179,7 +216,7 @@ export function AsignaturasPage() {
                             : `${asignaturas.length} asignatura${asignaturas.length !== 1 ? "s" : ""} registrada${asignaturas.length !== 1 ? "s" : ""}`}
                     </p>
                 </div>
-                <button className={styles.addBtn} onClick={() => setModal({ ...BLANK })}>
+                <button className={styles.addBtn} onClick={() => setModal({ ...BLANK, lecciones: defaultLecciones })}>
                     <PlusIcon /> Nueva asignatura
                 </button>
             </div>
@@ -213,9 +250,16 @@ export function AsignaturasPage() {
                                         {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
                                     </select>
                                 </div>
+                                <div className={styles.filterPopoverRow}>
+                                    <label>Sección</label>
+                                    <select value={filterSeccion} onChange={(e) => setFilterSeccion(e.target.value)}>
+                                        <option value="">Todas</option>
+                                        {secciones.map((s) => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
                                 {activeFilterCount > 0 && (
                                     <button type="button" className={styles.filterClearBtn}
-                                        onClick={() => { setFilterGrupo(""); setFilterAño(""); }}>
+                                        onClick={() => { setFilterGrupo(""); setFilterAño(""); setFilterSeccion(""); }}>
                                         Limpiar filtros
                                     </button>
                                 )}
@@ -227,22 +271,29 @@ export function AsignaturasPage() {
                 {/* Ordenar */}
                 <div className={styles.filterBtnWrap}>
                     <button type="button"
-                        className={`${styles.filterToggleBtn}${sort !== "az" ? ` ${styles.filterToggleActive}` : ""}`}
+                        className={`${styles.filterToggleBtn}${sortKey !== "creacion" || sortDir !== "desc" ? ` ${styles.filterToggleActive}` : ""}`}
                         onClick={() => { setShowSort(v => !v); setShowFilters(false); }}>
-                        <SortIcon /> {SORT_OPTIONS.find(o => o.value === sort)?.label ?? "Ordenar"}
+                        <SortIcon /> {SORT_LABELS[sortKey]}
                     </button>
                     {showSort && (
                         <>
                             <div className={styles.filterBackdrop} onClick={() => setShowSort(false)} />
                             <div className={styles.filterPopover}>
-                                {SORT_OPTIONS.map((o) => (
-                                    <button key={o.value} type="button"
-                                        className={`${styles.sortOption}${sort === o.value ? ` ${styles.sortOptionActive}` : ""}`}
-                                        onClick={() => { setSort(o.value); setShowSort(false); }}>
-                                        {o.label}
-                                        {sort === o.value && <CheckIcon className={styles.sortCheckIcon} />}
-                                    </button>
-                                ))}
+                                {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => {
+                                    const active = sortKey === key;
+                                    const dir = active ? sortDir : "asc";
+                                    return (
+                                        <button key={key} type="button"
+                                            className={`${styles.sortOption}${active ? ` ${styles.sortOptionActive}` : ""}`}
+                                            onClick={() => {
+                                                if (active) setSortDir(d => d === "asc" ? "desc" : "asc");
+                                                else { setSortKey(key); setSortDir("asc"); }
+                                            }}>
+                                            {SORT_LABELS[key]}
+                                            <ChevronDownIcon style={{ transform: dir === "asc" ? "rotate(180deg)" : "none", width: 13, height: 13, flexShrink: 0 }} />
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </>
                     )}

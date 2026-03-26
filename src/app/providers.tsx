@@ -5,6 +5,8 @@ import { useAsignaturasStore } from "../features/asignaturas/store";
 import { useEstudiantesStore } from "../features/estudiantes/store";
 import { useHorariosStore } from "../features/horarios/store";
 import { useEvaluacionesStore } from "../features/evaluaciones/store";
+import { useConfiguracionStore } from "../features/configuracion/store";
+import { AlertChecker } from "./AlertChecker";
 
 // ─── ThemeSync ────────────────────────────────────────────────────────────────
 // Applies the stored theme to <html data-theme="..."> on first render and changes.
@@ -24,7 +26,8 @@ function DbInit() {
     const loadAsignaturas  = useAsignaturasStore((s) => s.load);
     const loadEstudiantes  = useEstudiantesStore((s) => s.load);
     const loadHorarios     = useHorariosStore((s) => s.load);
-    const loadEvaluaciones = useEvaluacionesStore((s) => s.load);
+    const loadEvaluaciones   = useEvaluacionesStore((s) => s.load);
+    const loadConfiguracion  = useConfiguracionStore((s) => s.loadFromDb);
 
     // Load institutions once on mount
     useEffect(() => {
@@ -38,7 +41,8 @@ function DbInit() {
         loadEstudiantes(currentId);
         loadHorarios(currentId);
         loadEvaluaciones(currentId);
-    }, [currentId, loadAsignaturas, loadEstudiantes, loadHorarios, loadEvaluaciones]);
+        loadConfiguracion(currentId);
+    }, [currentId, loadAsignaturas, loadEstudiantes, loadHorarios, loadEvaluaciones, loadConfiguracion]);
 
     return null;
 }
@@ -49,6 +53,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <>
             <ThemeSync />
             <DbInit />
+            <AlertChecker />
             {children}
         </>
     );

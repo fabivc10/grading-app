@@ -4,19 +4,24 @@ import { useAsignaturasStore } from "../../asignaturas/store";
 import { useInstitutionStore } from "../../institution/store";
 import type { ScheduleEntry, Break, DragState, DragPayload } from "../types";
 import { SearchInput } from "../../../shared/ui/SearchInput";
-import { Modal } from "../../../shared/ui/Modal";
-import { FormField } from "../../../shared/ui/FormField";
+import { FilterIcon, SortIcon, ChevronDownIcon, CloseIcon } from "../../../shared/ui/icons";
+import { useConfiguracionStore } from "../../configuracion/store";
 import styles from "../HorariosPage.module.css";
 
+type SortKey = "nombre" | "lecciones" | "creacion";
+const SORT_LABELS: Record<SortKey, string> = {
+    nombre:   "Alfabéticamente",
+    lecciones: "Lecciones",
+    creacion:  "Fecha de creación",
+};
+
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLOT_COUNT   = 60;   // 7:00 → 16:50, one slot = 10 min
-const SLOT_HEIGHT  = 16;   // px per 10-min slot
-const LESSON_SLOTS = 4;    // each lesson = 4 × 10 min = 40 min
+const SLOT_COUNT    = 60;   // 7:00 → 16:50, one slot = 10 min
+const SLOT_HEIGHT   = 16;   // px per 10-min slot
 const COLUMN_HEIGHT = SLOT_COUNT * SLOT_HEIGHT; // 960 px
 
 const DAYS      = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 const DAY_SHORT = ["L", "M", "X", "J", "V"];
-const BREAK_PRESETS = ["Recreo", "Almuerzo", "Personalizado"];
 const ACCENT_CLASSES = [styles.a0, styles.a1, styles.a2, styles.a3, styles.a4, styles.a5];
 const ACCENT_COLORS  = ["#777","#555","#999","#444","#aaa","#666"];
 
@@ -41,96 +46,22 @@ const slotToTime = (slot: number): string => {
 };
 
 
-// ─── Break Modal ──────────────────────────────────────────────────────────────
-function BreakModal({ onSave, onClose }: {
-    onSave: (b: Omit<Break, "id">) => void;
-    onClose: () => void;
-}) {
-    const [preset,    setPreset]    = useState("Recreo");
-    const [custom,    setCustom]    = useState("");
-    const [startTime, setStartTime] = useState("09:00");
-    const [minutes,   setMinutes]   = useState(20);
-    const [days,      setDays]      = useState<number[]>([0, 1, 2, 3, 4]);
-
-    const durationSlots = Math.max(1, Math.round(minutes / 10));
-    const startSlot     = timeToSlot(startTime);
-    const nombre        = preset === "Personalizado" ? custom.trim() : preset;
-    const valid         = nombre !== "" && days.length > 0 && minutes > 0;
-
-    const toggleDay = (d: number) =>
-        setDays((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort());
-
-    const endSlot   = Math.min(SLOT_COUNT - 1, startSlot + durationSlots - 1);
-    const endTime   = TIME_SLOTS[Math.min(endSlot + 1, SLOT_COUNT - 1)] ?? TIME_SLOTS[SLOT_COUNT - 1];
-
-    const footer = (
-        <>
-            <button className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-            <button className={styles.saveBtn} disabled={!valid}
-                onClick={() => valid && onSave({ nombre, startSlot, durationSlots, days })}>
-                Añadir break
-            </button>
-        </>
-    );
-
-    return (
-        <Modal open onClose={onClose} title="Nuevo break" footer={footer}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-                <FormField label="Tipo">
-                    <select className={styles.formInput} value={preset} onChange={(e) => setPreset(e.target.value)}>
-                        {BREAK_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                </FormField>
-                {preset === "Personalizado" && (
-                    <FormField label="Nombre">
-                        <input className={styles.formInput} type="text" value={custom} onChange={(e) => setCustom(e.target.value)}
-                            placeholder="Ej: Tutoría" autoFocus />
-                    </FormField>
-                )}
-                <div className={styles.row2}>
-                    <FormField label="Hora de inicio">
-                        <input className={styles.formInput} type="time" min="07:00" max="16:50" step="600"
-                            value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                    </FormField>
-                    <FormField label="Duración (min)">
-                        <input className={styles.formInput} type="number" min={1} max={240}
-                            value={minutes || ""} onChange={(e) => setMinutes(Number(e.target.value))} />
-                    </FormField>
-                </div>
-                <FormField label="Días">
-                    <div className={styles.dayToggleRow}>
-                        {DAY_SHORT.map((lbl, i) => (
-                            <button key={i} type="button"
-                                className={`${styles.dayToggle}${days.includes(i) ? ` ${styles.dayToggleOn}` : ""}`}
-                                onClick={() => toggleDay(i)}>{lbl}</button>
-                        ))}
-                    </div>
-                </FormField>
-                {valid && (
-                    <p className={styles.breakHint}>
-                        {durationSlots} bloque{durationSlots > 1 ? "s" : ""} de 10 min
-                        · {TIME_SLOTS[startSlot]} → {endTime}
-                    </p>
-                )}
-            </div>
-        </Modal>
-    );
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export function HorariosPage() {
     const asignaturas   = useAsignaturasStore((s) => s.asignaturas);
     const institutionId = useInstitutionStore((s) => s.currentId);
 
+    const duracionLeccion = useConfiguracionStore((s) => s.duracionLeccion);
+    const lessonSlots = Math.max(1, Math.round(duracionLeccion / 10));
+
     const entries    = useHorariosStore((s) => s.entries);
     const breaks     = useHorariosStore((s) => s.breaks);
     const addEntry    = useHorariosStore((s) => s.addEntry);
     const moveEntry   = useHorariosStore((s) => s.moveEntry);
     const removeEntry = useHorariosStore((s) => s.removeEntry);
-    const addBreak    = useHorariosStore((s) => s.addBreak);
     const removeBreak = useHorariosStore((s) => s.removeBreak);
 
-    const [showBreakModal, setShowBreakModal] = useState(false);
     const [drag,           setDrag]           = useState<DragState | null>(null);
     const [overCell,       setOverCell]       = useState<{ day: number; slot: number } | null>(null);
     const dragRef = useRef<DragState | null>(null);
@@ -140,31 +71,39 @@ export function HorariosPage() {
     const [search,      setSearch]      = useState("");
     const [filterAño,   setFilterAño]   = useState("");
     const [filterGrupo, setFilterGrupo] = useState("");
-    const [sort,        setSort]        = useState<"az"|"za"|"lec-desc"|"lec-asc">("az");
+    const [sortKey,     setSortKey]     = useState<SortKey>("nombre");
+    const [sortDir,     setSortDir]     = useState<"asc" | "desc">("asc");
+    const [showFilters, setShowFilters] = useState(false);
+    const [showSort,    setShowSort]    = useState(false);
+    const [filterSeccion, setFilterSeccion] = useState("");
 
-    const años   = useMemo(() => [...new Set(asignaturas.map((a) => a.año))].sort((a, b) => b - a), [asignaturas]);
-    const grupos = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort(), [asignaturas]);
+    const años     = useMemo(() => [...new Set(asignaturas.map((a) => a.año))].sort((a, b) => b - a), [asignaturas]);
+    const grupos   = useMemo(() => [...new Set(asignaturas.map((a) => a.grupo))].sort((a, b) => a - b), [asignaturas]);
+    const secciones = useMemo(() => [...new Set(asignaturas.map((a) => a.seccion))].sort((a, b) => a - b), [asignaturas]);
+
+    const activeFilterCount = [filterAño, filterGrupo, filterSeccion].filter(Boolean).length;
 
     const filteredAsigs = useMemo(() => {
         const q = search.toLowerCase();
         let list = asignaturas.filter((a) =>
-            (!q || a.nombre.toLowerCase().includes(q) || a.grupo.toLowerCase().includes(q)) &&
-            (!filterAño   || a.año === Number(filterAño)) &&
-            (!filterGrupo || a.grupo === filterGrupo)
+            (!q || a.nombre.toLowerCase().includes(q) || String(a.grupo).includes(q)) &&
+            (!filterAño     || a.año     === Number(filterAño)) &&
+            (!filterGrupo   || a.grupo   === Number(filterGrupo)) &&
+            (!filterSeccion || a.seccion === Number(filterSeccion))
         );
+        const mul = sortDir === "asc" ? 1 : -1;
         return [...list].sort((a, b) => {
-            if (sort === "az")       return a.nombre.localeCompare(b.nombre);
-            if (sort === "za")       return b.nombre.localeCompare(a.nombre);
-            if (sort === "lec-desc") return b.lecciones - a.lecciones;
-            return a.lecciones - b.lecciones;
+            if (sortKey === "nombre")    return mul * (a.nombre.localeCompare(b.nombre) || a.grupo - b.grupo || a.año - b.año);
+            if (sortKey === "lecciones") return mul * (a.lecciones - b.lecciones);
+            return mul * a.created_at.localeCompare(b.created_at);
         });
-    }, [asignaturas, search, filterAño, filterGrupo, sort]);
+    }, [asignaturas, search, filterAño, filterGrupo, filterSeccion, sortKey, sortDir]);
 
-    // each entry occupies LESSON_SLOTS consecutive slots → map all of them
+    // each entry occupies lessonSlots consecutive slots → map all of them
     const cellMap = useMemo(() => {
         const m: Record<string, ScheduleEntry> = {};
         entries.forEach((e) => {
-            for (let s = e.slot; s < e.slot + LESSON_SLOTS; s++)
+            for (let s = e.slot; s < e.slot + lessonSlots; s++)
                 m[`${e.day}-${s}`] = e;
         });
         return m;
@@ -185,8 +124,8 @@ export function HorariosPage() {
     const isValidDrop = (day: number, slot: number): boolean => {
         const p = drag?.payload;
         if (!p) return false;
-        if (slot < 0 || slot + LESSON_SLOTS > SLOT_COUNT) return false;
-        for (let s = slot; s < slot + LESSON_SLOTS; s++) {
+        if (slot < 0 || slot + lessonSlots > SLOT_COUNT) return false;
+        for (let s = slot; s < slot + lessonSlots; s++) {
             if (breakMap[`${day}-${s}`]) return false;
             const occ = cellMap[`${day}-${s}`];
             if (occ) {
@@ -213,12 +152,6 @@ export function HorariosPage() {
         }
     };
 
-    // ── Break management ──────────────────────────────────────────────────────
-    const handleAddBreak = (b: Omit<Break, "id">) => {
-        addBreak(institutionId, b);
-        setShowBreakModal(false);
-    };
-
     // ── Global mouse tracking ─────────────────────────────────────────────────
     useEffect(() => {
         if (!drag) return;
@@ -231,7 +164,7 @@ export function HorariosPage() {
             if (col) {
                 const rect    = col.getBoundingClientRect();
                 const rawSlot = Math.floor((e.clientY - rect.top) / SLOT_HEIGHT);
-                const slot    = Math.max(0, Math.min(SLOT_COUNT - LESSON_SLOTS, rawSlot - grabOffset));
+                const slot    = Math.max(0, Math.min(SLOT_COUNT - lessonSlots, rawSlot - grabOffset));
                 setOverCell({ day: Number(col.dataset.dayCol), slot });
             } else {
                 setOverCell(null);
@@ -244,7 +177,7 @@ export function HorariosPage() {
             if (col) {
                 const rect    = col.getBoundingClientRect();
                 const rawSlot = Math.floor((e.clientY - rect.top) / SLOT_HEIGHT);
-                const slot    = Math.max(0, Math.min(SLOT_COUNT - LESSON_SLOTS, rawSlot - grabOffset));
+                const slot    = Math.max(0, Math.min(SLOT_COUNT - lessonSlots, rawSlot - grabOffset));
                 commitDrop(Number(col.dataset.dayCol), slot);
             }
             setDrag(null);
@@ -282,27 +215,81 @@ export function HorariosPage() {
                 <div className={styles.panelToolbar}>
                     <SearchInput value={search} onChange={setSearch} placeholder="Buscar..." />
                     <div className={styles.filterRow}>
-                        <select className={styles.filterSelect} value={filterAño} onChange={(e) => setFilterAño(e.target.value)}>
-                            <option value="">Año</option>
-                            {años.map((y) => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                        <select className={styles.filterSelect} value={filterGrupo} onChange={(e) => setFilterGrupo(e.target.value)}>
-                            <option value="">Grupo</option>
-                            {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
+                        {/* Filtrar */}
+                        <div className={styles.filterBtnWrap}>
+                            <button type="button"
+                                className={`${styles.filterToggleBtn}${activeFilterCount > 0 ? ` ${styles.filterToggleActive}` : ""}`}
+                                onClick={() => { setShowFilters(v => !v); setShowSort(false); }}>
+                                <FilterIcon /> Filtrar
+                                {activeFilterCount > 0 && <span className={styles.filterBadge}>{activeFilterCount}</span>}
+                            </button>
+                            {showFilters && (
+                                <>
+                                    <div className={styles.filterBackdrop} onClick={() => setShowFilters(false)} />
+                                    <div className={styles.filterPopover}>
+                                        <div className={styles.filterPopoverRow}>
+                                            <label>Año</label>
+                                            <select value={filterAño} onChange={(e) => setFilterAño(e.target.value)}>
+                                                <option value="">Todos</option>
+                                                {años.map((y) => <option key={y} value={y}>{y}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className={styles.filterPopoverRow}>
+                                            <label>Grupo</label>
+                                            <select value={filterGrupo} onChange={(e) => setFilterGrupo(e.target.value)}>
+                                                <option value="">Todos</option>
+                                                {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className={styles.filterPopoverRow}>
+                                            <label>Sección</label>
+                                            <select value={filterSeccion} onChange={(e) => setFilterSeccion(e.target.value)}>
+                                                <option value="">Todas</option>
+                                                {secciones.map((s) => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        </div>
+                                        {activeFilterCount > 0 && (
+                                            <button type="button" className={styles.filterClearBtn}
+                                                onClick={() => { setFilterAño(""); setFilterGrupo(""); setFilterSeccion(""); }}>
+                                                Limpiar filtros
+                                            </button>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Ordenar */}
+                        <div className={styles.filterBtnWrap}>
+                            <button type="button"
+                                className={`${styles.filterToggleBtn}${sortKey !== "nombre" || sortDir !== "asc" ? ` ${styles.filterToggleActive}` : ""}`}
+                                onClick={() => { setShowSort(v => !v); setShowFilters(false); }}>
+                                <SortIcon /> {SORT_LABELS[sortKey]}
+                            </button>
+                            {showSort && (
+                                <>
+                                    <div className={styles.filterBackdrop} onClick={() => setShowSort(false)} />
+                                    <div className={styles.filterPopover}>
+                                        {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => {
+                                            const active = sortKey === key;
+                                            const dir = active ? sortDir : "asc";
+                                            return (
+                                                <button key={key} type="button"
+                                                    className={`${styles.sortOption}${active ? ` ${styles.sortOptionActive}` : ""}`}
+                                                    onClick={() => {
+                                                        if (active) setSortDir(d => d === "asc" ? "desc" : "asc");
+                                                        else { setSortKey(key); setSortDir("asc"); }
+                                                    }}>
+                                                    {SORT_LABELS[key]}
+                                                    <ChevronDownIcon style={{ transform: dir === "asc" ? "rotate(180deg)" : "none", width: 12, height: 12, flexShrink: 0 }} />
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <select className={styles.filterSelect} value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-                        <option value="az">A → Z</option>
-                        <option value="za">Z → A</option>
-                        <option value="lec-desc">Más lecciones</option>
-                        <option value="lec-asc">Menos lecciones</option>
-                    </select>
-                    {(search || filterAño || filterGrupo) && (
-                        <button className={styles.clearAll}
-                            onClick={() => { setSearch(""); setFilterAño(""); setFilterGrupo(""); }}>
-                            Limpiar filtros
-                        </button>
-                    )}
                 </div>
 
                 <div className={styles.panelList}>
@@ -349,13 +336,12 @@ export function HorariosPage() {
                     })}
                 </div>
 
-                {/* Breaks section */}
-                <div className={styles.breakSection}>
-                    <div className={styles.breakSectionHead}>
-                        <span className={styles.breakSectionTitle}>Breaks</span>
-                        <button className={styles.addBreakBtn} onClick={() => setShowBreakModal(true)}>+</button>
-                    </div>
-                    {breaks.length > 0 && (
+                {/* Breaks section — creation removed, existing breaks still shown */}
+                {breaks.length > 0 && (
+                    <div className={styles.breakSection}>
+                        <div className={styles.breakSectionHead}>
+                            <span className={styles.breakSectionTitle}>Breaks</span>
+                        </div>
                         <div className={styles.breakList}>
                             {breaks.map((b) => (
                                 <div key={b.id} className={styles.breakItem}>
@@ -369,9 +355,8 @@ export function HorariosPage() {
                                 </div>
                             ))}
                         </div>
-                    )}
-                    {breaks.length === 0 && <p className={styles.emptyBreak}>Sin breaks definidos</p>}
-                </div>
+                    </div>
+                )}
             </aside>
 
             {/* ── Schedule ── */}
@@ -433,16 +418,16 @@ export function HorariosPage() {
                                         if (!asig) return null;
                                         const asigIdx = asignaturas.indexOf(asig);
                                         const tStart  = slotToTime(entry.slot);
-                                        const tEnd    = slotToTime(entry.slot + LESSON_SLOTS);
+                                        const tEnd    = slotToTime(entry.slot + lessonSlots);
                                         return (
                                             <div key={entry.id}
                                                 className={`${styles.entry} ${ACCENT_CLASSES[asigIdx % 6]}`}
-                                                style={{ top: entry.slot * SLOT_HEIGHT, height: LESSON_SLOTS * SLOT_HEIGHT }}
+                                                style={{ top: entry.slot * SLOT_HEIGHT, height: lessonSlots * SLOT_HEIGHT }}
                                                 title={`${asig.nombre} — ${asig.grupo} ${asig.año}\nLección ${entry.leccionNum}\n${tStart}–${tEnd}`}
                                                 onMouseDown={(e) => {
                                                     e.preventDefault(); e.stopPropagation();
                                                     const rect = e.currentTarget.getBoundingClientRect();
-                                                    const grabOffset = Math.min(LESSON_SLOTS - 1, Math.floor((e.clientY - rect.top) / SLOT_HEIGHT));
+                                                    const grabOffset = Math.min(lessonSlots - 1, Math.floor((e.clientY - rect.top) / SLOT_HEIGHT));
                                                     const payload: DragPayload = {
                                                         kind: "entry",
                                                         entryId: entry.id,
@@ -455,13 +440,12 @@ export function HorariosPage() {
                                                 <button className={styles.entryRemove}
                                                     onMouseDown={(e) => e.stopPropagation()}
                                                     onClick={(e) => { e.stopPropagation(); removeEntry(entry.id); }}>
-                                                    ×
+                                                    <CloseIcon width={8} height={8} />
                                                 </button>
                                                 <span className={styles.entryName}>{asig.nombre}</span>
                                                 <span className={styles.entryMeta}>{asig.grupo} · {asig.año}</span>
                                                 <div className={styles.entryFoot}>
                                                     <span className={styles.entryTime}>{tStart}–{tEnd}</span>
-                                                    <span className={styles.entryLec}>#{entry.leccionNum}</span>
                                                 </div>
                                             </div>
                                         );
@@ -470,7 +454,7 @@ export function HorariosPage() {
                                     {/* Drop hint overlay */}
                                     {isHover && drag && (
                                         <div className={`${styles.dropHint} ${hoverValid ? styles.dropHintOk : styles.dropHintBad}`}
-                                            style={{ top: hoverSlot * SLOT_HEIGHT, height: LESSON_SLOTS * SLOT_HEIGHT }} />
+                                            style={{ top: hoverSlot * SLOT_HEIGHT, height: lessonSlots * SLOT_HEIGHT }} />
                                     )}
                                 </div>
                             );
@@ -479,7 +463,6 @@ export function HorariosPage() {
                 </div>
             </div>
 
-            {showBreakModal && <BreakModal onSave={handleAddBreak} onClose={() => setShowBreakModal(false)} />}
         </div>
     );
 }

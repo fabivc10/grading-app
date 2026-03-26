@@ -53,10 +53,10 @@
     --shadow-lg: 0 16px 48px rgba(0,0,0,0.14);
 
     /* Typography scale */
-    --fs-xs:   0.72rem;
-    --fs-sm:   0.8rem;
-    --fs-base: 0.875rem;
-    --fs-md:   0.9375rem;
+    --fs-xs:   0.7rem;
+    --fs-sm:   0.775rem;
+    --fs-base: 0.825rem;
+    --fs-md:   0.875rem;
 
     /* Spacing scale */
     --sp-1: 0.25rem;
@@ -65,15 +65,15 @@
     --sp-4: 1rem;
 
     /* Border radius scale */
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 5px;
+    --radius-xl: 6px;
 
     /* Input standard */
     --input-padding-y: 0.46rem;
     --input-padding-x: 0.7rem;
-    --input-radius: 7px;
+    --input-radius: 4px;
     --input-font: var(--fs-base);
 }
 

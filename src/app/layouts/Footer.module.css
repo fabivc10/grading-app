@@ -29,7 +29,7 @@
 /* Col 1 */
 .brand { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
 .brandIcon {
-    width: 22px; height: 22px; background: var(--sb-tx-active); border-radius: 5px;
+    width: 22px; height: 22px; background: var(--sb-tx-active); border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 0.7rem; color: var(--sb-bg); flex-shrink: 0;
 }

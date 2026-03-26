@@ -13,22 +13,21 @@ export type Notification = {
 
 type NotificationsState = {
     notifications: Notification[];
+    /** Tracks the last alert level sent per key: "p-{estId}-{asigId}" or "a-{estId}-{asigId}" */
+    sentAlerts: Record<string, number>;
     add: (n: Omit<Notification, "id" | "read">) => void;
     markRead: (id: string) => void;
     markAllRead: () => void;
     remove: (id: string) => void;
     clearRead: () => void;
+    setSentAlert: (key: string, level: number) => void;
 };
 
 export const useNotificationsStore = create<NotificationsState>()(
     persist(
         (set) => ({
-            notifications: [
-                { id: "demo-1", text: "Carlos Pérez tiene nota total por debajo del umbral (62 pts)", time: "hace 5 min",  priority: "alta",  read: false },
-                { id: "demo-2", text: "María López: cotidiano por debajo del 70%",                   time: "hace 20 min", priority: "media", read: false },
-                { id: "demo-3", text: "Horario actualizado para el martes",                          time: "hace 1 h",    priority: "baja",  read: true  },
-                { id: "demo-4", text: "Recordatorio: calificaciones por entregar",                   time: "ayer",        priority: "media", read: true  },
-            ],
+            notifications: [],
+            sentAlerts: {},
             add: (n) => set((s) => ({
                 notifications: [{ ...n, id: crypto.randomUUID(), read: false }, ...s.notifications],
             })),
@@ -36,6 +35,7 @@ export const useNotificationsStore = create<NotificationsState>()(
             markAllRead: ()   => set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
             remove:      (id) => set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) })),
             clearRead:   ()   => set((s) => ({ notifications: s.notifications.filter((n) => !n.read) })),
+            setSentAlert: (key, level) => set((s) => ({ sentAlerts: { ...s.sentAlerts, [key]: level } })),
         }),
         { name: "grading-notifications" }
     )

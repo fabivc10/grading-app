@@ -7,6 +7,7 @@ export type AsignaturaDTO = {
     grupo: string;
     seccion: string;
     lecciones: number;
+    created_at: string;
 };
 
 export type SemestreDTO = {
@@ -26,6 +27,7 @@ export type Asignatura = {
     seccion: number;
     lecciones: number;
     semestres: [Semestre, Semestre];
+    created_at: string;
 };
 
 // ─── Input / Form ─────────────────────────────────────────────────────────────

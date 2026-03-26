@@ -62,8 +62,6 @@ export function Topbar() {
 
     return (
         <header className={styles.topbar}>
-            <span className={styles.title}>{title}</span>
-
             <div className={styles.actions}>
                 <button className={styles.themeBtn} onClick={toggle}
                     title={theme === "light" ? "Activar modo oscuro" : "Activar modo claro"}>

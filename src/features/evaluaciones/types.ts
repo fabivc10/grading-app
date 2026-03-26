@@ -10,11 +10,14 @@ export type TemaItem = {
     notaDescripcion: string; // reason/comment for the earned grade
 };
 
+export type EvalTipo = "numerica" | "analitica";
+
 export type EvalEntry = {
     id: string;
     nombre: string;
     pct: number;         // max pts allocated from category weight
     semestre: 's1' | 's2';
+    tipo: EvalTipo;
     items: TemaItem[];
 };
 
@@ -51,4 +54,16 @@ export type EvalWeights = {
     prueba:     number;
     proyecto:   number;
     asistencia: number;
+};
+
+// Per-nivel (año+grupo) evaluation configuration — replaces the global EvalWeights
+export type NivelConfig = {
+    cotidiano:    number;  // weight %
+    tareas:       number;  // weight %
+    numTareas:    number;  // max entries
+    prueba:       number;  // weight %
+    numPruebas:   number;  // max entries
+    proyecto:     number;  // weight % (0 when disabled)
+    numProyectos: number;  // max entries (0 = category disabled)
+    asistencia:   number;  // weight %
 };
