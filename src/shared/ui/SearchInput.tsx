@@ -22,8 +22,9 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
                 onChange={(e) => onChange(e.target.value)}
             />
             {value.length > 0 && (
-                <button className={styles.clear} type="button" onClick={() => onChange("")}>Ã—</button>
+                <button className={styles.clear} type="button" onClick={() => onChange("")}>×</button>
             )}
         </div>
     );
 }
+

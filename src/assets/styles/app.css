@@ -1,0 +1,225 @@
+/* â”€â”€ Font â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* â”€â”€ CSS Variables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+:root {
+    /* Page backgrounds */
+    --bg:        #f4f4f4;
+    --surface:   #ffffff;
+    --surface-2: #f9f9f9;
+    --surface-3: #f0f0f0;
+
+    /* Text */
+    --tx-1: #111111;
+    --tx-2: #555555;
+    --tx-3: #999999;
+
+    /* Borders */
+    --bd:   #e0e0e0;
+    --bd-2: #cccccc;
+
+    /* Accent (black-based) */
+    --accent:           #111111;
+    --accent-hover:     #333333;
+    --accent-fg:        #ffffff;
+    --accent-subtle:    #efefef;
+    --accent-subtle-fg: #333333;
+
+    /* Sidebar â€” always dark */
+    --sb-bg:        #111111;
+    --sb-bd:        #1e1e1e;
+    --sb-tx:        #777777;
+    --sb-tx-active: #ffffff;
+    --sb-hover:     #1c1c1c;
+    --sb-active:    #282828;
+
+    /* Topbar */
+    --tb-bg: #ffffff;
+    --tb-bd: #e8e8e8;
+
+    /* Input */
+    --input-bg:    #ffffff;
+    --input-bd:    #d5d5d5;
+    --input-focus: #111111;
+
+    /* Danger */
+    --danger:    #cc0000;
+    --danger-bg: #fff4f4;
+    --danger-bd: #ffd5d5;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.14);
+
+    /* Typography scale */
+    --fs-xs:   0.7rem;
+    --fs-sm:   0.775rem;
+    --fs-base: 0.825rem;
+    --fs-md:   0.875rem;
+
+    /* Spacing scale */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+
+    /* Border radius scale */
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 5px;
+    --radius-xl: 6px;
+
+    /* Input standard */
+    --input-padding-y: 0.46rem;
+    --input-padding-x: 0.7rem;
+    --input-radius: 4px;
+    --input-font: var(--fs-base);
+
+    /* Standardized UI tokens */
+    --page-title-size: 1.25rem;
+    --page-title-weight: 700;
+    --page-subtitle-size: var(--fs-base);
+    --page-subtitle-color: var(--tx-3);
+    --page-subtitle-margin-top: 0.15rem;
+    --page-header-margin-bottom: 1.125rem;
+    --page-toolbar-gap: 0.5rem;
+    --page-toolbar-margin-bottom: 1rem;
+    --page-section-gap: 0.75rem;
+
+    --toolbar-control-padding-y: 0.48rem;
+    --toolbar-control-padding-x: 0.8rem;
+    --toolbar-control-radius: var(--radius-md);
+    --toolbar-control-font-size: var(--fs-sm);
+    --toolbar-control-font-weight: 500;
+    --toolbar-control-bg: var(--surface);
+    --toolbar-control-text: var(--tx-2);
+    --toolbar-control-border: var(--input-bd);
+    --toolbar-control-border-hover: var(--bd-2);
+
+    --primary-action-padding-y: 0.525rem;
+    --primary-action-padding-x: 0.9rem;
+    --primary-action-radius: var(--radius-md);
+    --primary-action-font-size: var(--fs-base);
+    --primary-action-font-weight: 600;
+    --primary-action-bg: var(--accent);
+    --primary-action-bg-hover: var(--accent-hover);
+    --primary-action-text: var(--accent-fg);
+
+    --modal-title-size: 0.95rem;
+    --modal-title-weight: 700;
+    --modal-header-bg: var(--surface);
+    --modal-footer-bg: var(--surface-2);
+    --modalActionMinWidth: 112px;
+    --modalActionPaddingY: 0.62rem;
+    --modalActionPaddingX: 1rem;
+    --modalActionRadius: 8px;
+    --modalActionFontSize: 0.8125rem;
+    --modalActionLineHeight: 1.1;
+    --modalSecondaryBorder: 1.5px solid var(--bd-2);
+    --modalSecondaryBorderHover: var(--tx-3);
+    --modalSecondaryText: var(--tx-2);
+    --modalSecondaryBg: var(--surface);
+    --modalSecondaryBgHover: var(--surface-3);
+    --modalSecondaryBgActive: var(--surface-3);
+    --modalSecondaryShadow: none;
+    --modalPrimaryBorder: 1px solid transparent;
+    --modalPrimaryBorderHover: transparent;
+    --modalPrimaryText: var(--accent-fg);
+    --modalPrimaryBg: var(--accent);
+    --modalPrimaryBgHover: var(--accent-hover);
+    --modalPrimaryBgActive: var(--accent-hover);
+    --modalPrimaryShadow: none;
+    --modalPrimaryShadowHover: none;
+    --modalPrimaryShadowActive: none;
+
+    --surfaceCardBg: var(--surface);
+    --surfaceCardBorder: 1px solid var(--bd);
+    --surfaceCardRadius: 4px;
+    --surfaceCardRadiusLg: 8px;
+    --surfaceCardShadow: var(--shadow-lg);
+
+    --panelHeaderPaddingY: 0.75rem;
+    --panelHeaderPaddingX: 1rem;
+    --panelBodyPaddingY: 0.75rem;
+    --panelBodyPaddingX: 1rem;
+
+    --tableShellBg: var(--surface);
+    --tableShellBorder: 1px solid var(--bd);
+    --tableShellRadius: 4px;
+}
+
+[data-theme="dark"] {
+    --bg:        #0c0c0c;
+    --surface:   #161616;
+    --surface-2: #1e1e1e;
+    --surface-3: #262626;
+
+    --tx-1: #f0f0f0;
+    --tx-2: #888888;
+    --tx-3: #555555;
+
+    --bd:   #2a2a2a;
+    --bd-2: #383838;
+
+    --accent:           #f0f0f0;
+    --accent-hover:     #d0d0d0;
+    --accent-fg:        #111111;
+    --accent-subtle:    #222222;
+    --accent-subtle-fg: #aaaaaa;
+
+    --sb-bg:        #090909;
+    --sb-bd:        #161616;
+    --sb-tx:        #505050;
+    --sb-tx-active: #f0f0f0;
+    --sb-hover:     #111111;
+    --sb-active:    #1c1c1c;
+
+    --tb-bg: #111111;
+    --tb-bd: #222222;
+
+    --input-bg:    #1a1a1a;
+    --input-bd:    #333333;
+    --input-focus: #aaaaaa;
+
+    --danger:    #ff6666;
+    --danger-bg: #1a0000;
+    --danger-bd: #3d0000;
+
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.5);
+}
+
+/* â”€â”€ Reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+
+html, body { height: 100%; }
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color: var(--tx-1);
+}
+
+img, picture, video, canvas, svg { display: block; max-width: 100%; }
+
+input, button, textarea, select { font: inherit; }
+
+button {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+ul, ol { list-style: none; padding: 0; }
+
+#root { height: 100%; }

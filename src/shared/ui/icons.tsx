@@ -148,3 +148,12 @@ export const BackIcon = (p: SvgProps) => (
         <polyline points="15 18 9 12 15 6"/>
     </svg>
 );
+export const ShieldKeyIcon = (p: SvgProps) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...p}>
+        <path d="M12 3l7 3.5v5.7c0 4.4-2.8 8.4-7 9.8-4.2-1.4-7-5.4-7-9.8V6.5L12 3z"/>
+        <circle cx="11" cy="11" r="1.8"/>
+        <path d="M12.7 11h4.3"/>
+        <path d="M15 11v1.7"/>
+        <path d="M16.8 11v1.1"/>
+    </svg>
+);

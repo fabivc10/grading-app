@@ -15,7 +15,7 @@
 .card {
     background: var(--surface);
     border: 1px solid var(--bd);
-    border-radius: 4px;
+    border-radius: 8px;
     width: 100%;
     max-width: 440px;
     box-shadow: var(--shadow-lg);
@@ -36,11 +36,12 @@
     justify-content: space-between;
     padding: 0.9rem 1.125rem;
     border-bottom: 1px solid var(--bd);
+    background: var(--modal-header-bg);
     flex-shrink: 0;
 }
 .title {
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: var(--modal-title-size);
+    font-weight: var(--modal-title-weight);
     color: var(--tx-1);
 }
 
@@ -72,7 +73,7 @@
 .footer {
     padding: 0.75rem 1.125rem;
     border-top: 1px solid var(--bd);
-    background: var(--surface-2);
+    background: var(--modal-footer-bg);
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;

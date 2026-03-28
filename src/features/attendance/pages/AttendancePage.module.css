@@ -1,0 +1,604 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Semantic color tokens — light mode defaults, dark mode overrides.
+   Defined on :root so they work globally across both themes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    /* Semester banner */
+    --at-sem-bg:   #2a2a2a;
+    --at-sem-fg:   #e5e5e5;
+
+    /* Month header */
+    --at-mon-bg:   #242424;
+    --at-mon-fg:   #d4d4d4;
+    --at-mon-bd:   #3a3a3a;
+    --at-mon-coll: #1f1f1f;
+
+    /* Week header */
+    --at-wk-bg:    #f5f5f5;
+    --at-wk-fg:    #555555;
+    --at-wk-bd:    #343434;
+
+    /* Rows */
+    --at-row-even: #ffffff;
+    --at-row-odd:  #f8f8f8;
+
+    /* Attendance cells */
+    --at-p-bg:     #d4edda;  --at-p-fg:  #155724;
+    --at-i-bg:     #f8d7da;  --at-i-fg:  #721c24;
+    --at-t-bg:     #fff3cd;  --at-t-fg:  #856404;
+    --at-j-bg:     #cce5ff;  --at-j-fg:  #004085;
+
+    /* Summary headers */
+    --at-sum-p-bg: #e6f4ea;  --at-sum-p-fg: #1a5c2a;
+    --at-sum-i-bg: #fce8e8;  --at-sum-i-fg: #7c1c1c;
+    --at-sum-t-bg: #fef9e7;  --at-sum-t-fg: #856404;
+    --at-sum-j-bg: #e8f0fe;  --at-sum-j-fg: #1e40af;
+
+    /* Notice */
+    --at-notice-bg: #fefce8;
+    --at-notice-bd: #ca8a04;
+    --at-notice-fg: #713f12;
+
+    /* Semester divider */
+    --at-split: #444444;
+}
+
+[data-theme="dark"] {
+    --at-sem-bg:   #242424;
+    --at-sem-fg:   #d8d8d8;
+
+    --at-mon-bg:   #202020;
+    --at-mon-fg:   #cfcfcf;
+    --at-mon-bd:   #323232;
+    --at-mon-coll: #1a1a1a;
+
+    --at-wk-bg:    #1c1c1c;
+    --at-wk-fg:    #888888;
+    --at-wk-bd:    #303030;
+
+    --at-row-even: #161616;
+    --at-row-odd:  #1e1e1e;
+
+    --at-p-bg:     #0d2e16;  --at-p-fg:  #5cbf74;
+    --at-i-bg:     #2e0d0d;  --at-i-fg:  #e87070;
+    --at-t-bg:     #2a1f00;  --at-t-fg:  #f9cc4a;
+    --at-j-bg:     #081b36;  --at-j-fg:  #5599ee;
+
+    --at-sum-p-bg: #0d2e16;  --at-sum-p-fg: #5cbf74;
+    --at-sum-i-bg: #2e0d0d;  --at-sum-i-fg: #e87070;
+    --at-sum-t-bg: #2a1f00;  --at-sum-t-fg: #f9cc4a;
+    --at-sum-j-bg: #081b36;  --at-sum-j-fg: #5599ee;
+
+    --at-notice-bg: #1c1600;
+    --at-notice-bd: #854d0e;
+    --at-notice-fg: #fef3c7;
+
+    --at-split: #4a4a4a;
+}
+
+/* ── Page layout ─────────────────────────────────────────────────────────── */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-section-gap);
+    height: 100%;
+    overflow: hidden;
+}
+
+.noAsig {
+    padding: 2rem;
+    color: var(--tx-3);
+    font-size: 0.875rem;
+}
+
+/* ── Info header ─────────────────────────────────────────────────────────── */
+.infoHeader {
+    background: var(--surfaceCardBg);
+    border: var(--surfaceCardBorder);
+    border-radius: var(--surfaceCardRadius);
+    padding: 0.65rem var(--panelHeaderPaddingX);
+    flex-shrink: 0;
+}
+.infoRow {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+.infoField     { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 140px; }
+.infoFieldWide { display: flex; flex-direction: column; gap: 0.1rem; flex: 2; min-width: 200px; }
+.infoFieldSm   { display: flex; flex-direction: column; gap: 0.1rem; min-width: 65px; align-items: center; }
+.infoActions   { display: flex; align-items: flex-end; padding-bottom: 0.1rem; }
+
+.infoLabel {
+    font-size: 0.67rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tx-3);
+}
+.infoValue {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tx-1);
+    padding: 0.25rem 0;
+    border-bottom: 1.5px solid var(--bd);
+    min-height: 1.75rem;
+}
+
+/* Custom asig select overlay */
+.asigSelectWrap {
+    position: relative;
+    width: 100%;
+    border-bottom: 1.5px solid var(--bd);
+    min-height: 1.75rem;
+}
+.asigSelectDisplay {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tx-1);
+    padding: 0.25rem 1.4rem 0.25rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.4;
+}
+.asigSelectNative {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.asigSelectWrap:focus-within { border-bottom-color: var(--accent); }
+
+/* Semester split divider — tall vertical line */
+.semSplit {
+    border-left: 3px solid var(--at-split) !important;
+}
+
+/* Curso select — explicit colours so OS dark-mode doesn't make text invisible */
+.cursoSelect {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tx-1);
+    background: var(--surface);
+    border: none;
+    border-bottom: 1.5px solid var(--bd);
+    border-radius: 0;
+    padding: 0.25rem 0;
+    width: 100%;
+    outline: none;
+    cursor: pointer;
+    color-scheme: light dark;
+}
+.cursoSelect:focus { border-bottom-color: var(--accent); }
+.cursoSelect option {
+    background: var(--surface);
+    color: var(--tx-1);
+}
+
+/* Config button */
+.configBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.38rem 0.7rem;
+    background: var(--surface-2);
+    border: 1.5px solid var(--bd);
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--tx-2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.12s, color 0.12s;
+}
+.configBtn:hover { border-color: var(--accent); color: var(--tx-1); }
+
+/* ── Notice ──────────────────────────────────────────────────────────────── */
+.notice {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 1rem;
+    background: var(--at-notice-bg);
+    border: 1px solid var(--at-notice-bd);
+    border-radius: var(--surfaceCardRadius);
+    font-size: 0.81rem;
+    color: var(--at-notice-fg);
+    flex-shrink: 0;
+}
+
+/* ── Table wrapper ───────────────────────────────────────────────────────── */
+.tableWrap {
+    flex: 1;
+    overflow: auto;
+    border: var(--tableShellBorder);
+    border-radius: var(--tableShellRadius);
+    background: var(--tableShellBg);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 3rem 2rem;
+    text-align: center;
+}
+.empty p    { font-size: 0.9rem; font-weight: 600; color: var(--tx-2); }
+.empty span { font-size: 0.8rem; color: var(--tx-3); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLE
+   ══════════════════════════════════════════════════════════════════════════ */
+.table {
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    width: max-content;
+    min-width: 100%;
+}
+
+/* ── Shared header cell ──────────────────────────────────────────────────── */
+.th {
+    border: 1px solid var(--bd);
+    background: var(--surface-2);
+    color: var(--tx-2);
+    font-size: 0.71rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 0.25rem 0.35rem;
+    white-space: nowrap;
+    /* sticky rows */
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* ── Fixed left columns (# and Nombre) ───────────────────────────────────── */
+.thNum, .tdNum {
+    position: sticky !important;
+    left: 0;
+    z-index: 3 !important;
+    width: 32px;
+    min-width: 32px;
+    text-align: center;
+}
+.thName, .tdName {
+    position: sticky !important;
+    left: 32px;
+    z-index: 3 !important;
+    min-width: 175px;
+    max-width: 225px;
+    text-align: left;
+    padding-left: 0.6rem;
+    border-right: 2px solid var(--bd-2);
+}
+/* Header fixed cols need higher z so they sit above body sticky cells */
+.thNum  { z-index: 5 !important; background: var(--surface-2); }
+.thName { z-index: 5 !important; background: var(--surface-2); }
+/* Body fixed cols inherit row background */
+.tdNum  { color: var(--tx-3); font-size: 0.7rem; }
+.tdName { white-space: nowrap; }
+
+/* ── Semester banner ─────────────────────────────────────────────────────── */
+.thSem {
+    background: var(--at-sem-bg) !important;
+    color:      var(--at-sem-fg) !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.6rem;
+}
+.thSemColl { opacity: 0.75; }
+.thSemOutside {
+    background: var(--surface-2) !important;
+    color: var(--tx-3) !important;
+}
+.semDates {
+    font-size: 0.63rem;
+    font-weight: 400;
+    opacity: 0.8;
+    margin-left: 0.5rem;
+}
+
+/* ── Month header ────────────────────────────────────────────────────────── */
+.thMonth {
+    position: relative;
+    background: var(--at-mon-bg) !important;
+    color:      var(--at-mon-fg) !important;
+    font-size: 0.71rem;
+    font-weight: 700;
+    border-top: 2px solid var(--at-mon-bd) !important;
+    text-align: left;
+    padding-right: 22px !important;
+    min-width: 70px;
+}
+.thMonthColl {
+    background: var(--at-mon-coll) !important;
+}
+.thMonthOutside {
+    background: var(--surface-2) !important;
+    color: var(--tx-2) !important;
+    border-top: 2px solid var(--bd-2) !important;
+}
+.monthCollapseBtn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: inherit;
+    opacity: 0.7;
+    padding: 0;
+    transition: opacity 0.1s;
+}
+.monthCollapseBtn:hover { opacity: 1; }
+.thCollSpacer,
+.tdCollSpacer {
+}
+
+/* ── Week header ─────────────────────────────────────────────────────────── */
+.thWeek {
+    background: var(--at-wk-bg) !important;
+    color:      var(--at-wk-fg) !important;
+    font-size: 0.68rem;
+    font-weight: 700;
+    border-top: 1px solid var(--at-wk-bd) !important;
+}
+
+/* ── Day header ──────────────────────────────────────────────────────────── */
+.thDay {
+    border: 1px solid var(--bd);
+    background: var(--surface-2);
+    text-align: center;
+    padding: 0.15rem 0.25rem;
+    min-width: 26px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+.thDayBlocked {
+    background: var(--surface-3);
+}
+.dayLabel { font-size: 0.68rem; font-weight: 700; color: var(--tx-1); }
+.dayDate  { font-size: 0.63rem; color: var(--tx-3); }
+
+/* ── Summary header cells ────────────────────────────────────────────────── */
+.thSum { padding: 0.25rem 0.35rem; font-size: 0.71rem; font-weight: 700; }
+.thSumP   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+.thSumI   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+.thSumT   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+.thSumJ   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+.thSumPct { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+
+
+/* ── Body rows ───────────────────────────────────────────────────────────── */
+.td {
+    border: 1px solid var(--bd);
+    padding: 0.28rem 0.4rem;
+    color: var(--tx-1);
+}
+.rowEven { background: var(--at-row-even); }
+.rowOdd  { background: var(--at-row-odd); }
+
+/* Body fixed cells inherit row background */
+.rowEven .tdNum,  .rowEven .tdName  { background: var(--at-row-even); }
+.rowOdd  .tdNum,  .rowOdd  .tdName  { background: var(--at-row-odd); }
+
+/* ── Attendance cells ────────────────────────────────────────────────────── */
+.cell {
+    border: 1px solid var(--bd);
+    width: 28px;
+    min-width: 24px;
+    max-width: 32px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    user-select: none;
+    padding: 0.28rem 0;
+    transition: filter 0.08s;
+}
+.cell:hover { filter: brightness(0.88); }
+.cellP { background: var(--at-p-bg); color: var(--at-p-fg); }
+.cellI { background: var(--at-i-bg); color: var(--at-i-fg); }
+.cellT { background: var(--at-t-bg); color: var(--at-t-fg); }
+.cellJ { background: var(--at-j-bg); color: var(--at-j-fg); }
+.cellBlocked {
+    background:
+        repeating-linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--surface-3) 88%, transparent) 0 6px,
+            color-mix(in srgb, var(--bd) 55%, transparent) 6px 12px
+        );
+    color: var(--tx-3);
+    cursor: not-allowed;
+}
+.cellBlocked:hover { filter: none; }
+
+/* Spacer for collapsed semester/month columns */
+.tdSpacer {
+    border: 1px solid var(--bd);
+    background: var(--surface-3);
+    width: 28px;
+    min-width: 28px;
+    opacity: 0.5;
+}
+
+/* ── Summary body cells ──────────────────────────────────────────────────── */
+.sumTd {
+    border: 1px solid var(--bd);
+    background: var(--surface-2);
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+}
+.sumTdP   { color: var(--at-sum-p-fg); }
+.sumTdI   { color: var(--at-sum-i-fg); }
+.sumTdT   { color: var(--at-sum-t-fg); }
+.sumTdJ   { color: var(--at-sum-j-fg); }
+.sumTdPct { color: var(--tx-2); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL
+   ══════════════════════════════════════════════════════════════════════════ */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 4px;
+    min-width: 360px;
+    max-width: 460px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+}
+.modalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--bd);
+}
+.modalTitle { font-size: 0.9rem; font-weight: 700; color: var(--tx-1); }
+.closeBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.3rem;
+    color: var(--tx-3);
+    line-height: 1;
+    transition: color 0.1s;
+}
+.closeBtn:hover { color: var(--tx-1); }
+
+.modalBody {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+.modalNote {
+    font-size: 0.78rem;
+    color: var(--tx-3);
+    background: var(--surface-2);
+    border: 1px solid var(--bd);
+    border-radius: 3px;
+    padding: 0.5rem 0.7rem;
+}
+.modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--bd);
+}
+
+.semBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--surface-2);
+    border: 1px solid var(--bd);
+    border-radius: 4px;
+}
+.semBlockTitle {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--tx-1);
+}
+.semBlockRow {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.field { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
+.field label { font-size: 0.74rem; font-weight: 600; color: var(--tx-2); }
+.field input {
+    padding: 0.4rem 0.5rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    color-scheme: light dark;
+}
+.field input:focus { border-color: var(--accent); }
+
+.datePartsRow {
+    display: flex;
+    gap: 0.4rem;
+}
+.monthSelect {
+    flex: 1;
+    padding: 0.4rem 0.4rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    color-scheme: light dark;
+}
+.monthSelect:focus { border-color: var(--accent); }
+.dayInput {
+    width: 60px;
+    padding: 0.4rem 0.4rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    color: var(--tx-1);
+    background: var(--input-bg);
+    outline: none;
+    color-scheme: light dark;
+}
+.dayInput:focus { border-color: var(--accent); }
+
+.cancelBtn {
+    padding: 0.42rem 0.85rem;
+    background: var(--surface-2);
+    border: 1.5px solid var(--bd);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tx-2);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.cancelBtn:hover { background: var(--surface-3); }
+.saveBtn {
+    padding: 0.42rem 0.85rem;
+    background: var(--accent);
+    color: var(--accent-fg);
+    border: none;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.saveBtn:hover { background: var(--accent-hover); }
