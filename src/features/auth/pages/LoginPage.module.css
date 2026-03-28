@@ -21,10 +21,10 @@
 
 .logoIcon {
     width: 52px; height: 52px;
-    background: var(--accent);
+    background: #ffffff;
     border-radius: 13px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.5rem; font-weight: 800; color: var(--accent-fg);
+    display: block;
+    object-fit: cover;
     margin: 0 auto 0.875rem;
 }
 
@@ -58,6 +58,15 @@
     padding: 0.5rem 0.75rem;
 }
 
+.helper {
+    font-size: 0.8125rem;
+    color: var(--tx-2);
+    background: var(--surface-2);
+    border: 1px solid var(--bd);
+    border-radius: 7px;
+    padding: 0.5rem 0.75rem;
+}
+
 .submitBtn {
     padding: 0.65rem;
     background: var(--accent); color: var(--accent-fg);
@@ -87,3 +96,20 @@
 }
 .providerBtn:hover  { background: var(--surface-2); border-color: var(--tx-3); }
 .providerBtn svg    { width: 19px; height: 19px; flex-shrink: 0; }
+
+.authSwitch {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--tx-3);
+}
+
+.authSwitch a {
+    color: var(--tx-1);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.authSwitch a:hover {
+    text-decoration: underline;
+}

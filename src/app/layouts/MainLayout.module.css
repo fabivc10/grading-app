@@ -24,5 +24,5 @@
 .main {
     flex: 1;
     overflow: auto;
-    padding: 1.5rem 2rem 2.5rem; /* bottom pad clears the collapsed footer bar */
+    padding: 1.5rem 2rem 4rem; /* extra bottom space prevents pages from feeling cut off near the footer */
 }

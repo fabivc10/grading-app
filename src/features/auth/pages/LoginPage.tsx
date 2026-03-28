@@ -1,5 +1,14 @@
-import { FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Link, useNavigate } from "react-router-dom";
+import {
+    completeEmailConfirmation,
+    completeOAuthLogin,
+    loginWithCredentials,
+    signInWithGoogle,
+    signInWithOutlook,
+} from "../services/auth.service";
 import { useAuthStore } from "../store";
 import styles from "./LoginPage.module.css";
 
@@ -21,18 +30,134 @@ const MicrosoftIcon = () => (
     </svg>
 );
 
+const SOCIAL_PROVIDER_KEY = "grading.social_provider";
+const NATIVE_LOGIN_PREFIX =
+    import.meta.env.VITE_NATIVE_OAUTH_REDIRECT_URL ?? "grading-app://login";
+const PENDING_DEEP_LINK_KEY = "grading.pending_deep_link";
+const POST_LOGIN_REDIRECT_KEY = "grading.post_login_redirect";
+
 export function LoginPage() {
-    const loginWithCredentials = useAuthStore((s) => s.loginWithCredentials);
+    const user = useAuthStore((s) => s.user);
     const navigate = useNavigate();
 
-    const [email,    setEmail]    = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error,    setError]    = useState("");
-    const [loading,  setLoading]  = useState(false);
+    const [error, setError] = useState("");
+    const [info, setInfo] = useState("");
+    const [loading, setLoading] = useState(false);
+    const oauthInFlight = useRef(false);
+
+    const consumePostLoginRedirect = () => {
+        const target = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY) || "/app";
+        sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+        return target;
+    };
+
+    const redirectAfterAuth = () => {
+        window.location.replace(consumePostLoginRedirect());
+    };
+
+    useEffect(() => {
+        if (user) {
+            navigate("/app", { replace: true });
+            return;
+        }
+
+        let cancelled = false;
+        const browserUrl = new URL(window.location.href);
+
+        const finishOAuth = async (sourceUrl?: string) => {
+            if (oauthInFlight.current) return;
+            oauthInFlight.current = true;
+            setLoading(true);
+            setError("");
+            setInfo("");
+            try {
+                const err = await completeOAuthLogin(undefined, sourceUrl);
+                if (cancelled) return;
+                if (err) {
+                    setError(err);
+                    return;
+                }
+                if (sourceUrl && browserUrl.searchParams.has("deep_link")) {
+                    window.history.replaceState({}, document.title, browserUrl.pathname);
+                }
+                redirectAfterAuth();
+            } catch (err) {
+                if (cancelled) return;
+                const message = err instanceof Error ? err.message : "No fue posible iniciar sesión.";
+                setError(message);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                    oauthInFlight.current = false;
+                }
+            }
+        };
+
+        const deepLinkSource = browserUrl.searchParams.get("deep_link") ?? sessionStorage.getItem(PENDING_DEEP_LINK_KEY);
+        const hasBrowserOAuthParams =
+            browserUrl.searchParams.has("code") ||
+            browserUrl.searchParams.has("error") ||
+            browserUrl.searchParams.has("error_description");
+        const hasStoredProvider = Boolean(sessionStorage.getItem(SOCIAL_PROVIDER_KEY));
+
+        if (deepLinkSource) {
+            void finishOAuth(decodeURIComponent(deepLinkSource));
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        if (hasBrowserOAuthParams) {
+            if (hasStoredProvider) {
+                void finishOAuth();
+            } else if (!isTauri()) {
+                void (async () => {
+                    setLoading(true);
+                    setError("");
+                    setInfo("");
+                    try {
+                        const err = await completeEmailConfirmation(window.location.href);
+                        if (cancelled) return;
+                        if (err) {
+                            setError(err);
+                            return;
+                        }
+                        redirectAfterAuth();
+                    } catch (err) {
+                        if (cancelled) return;
+                        setError(err instanceof Error ? err.message : "No fue posible confirmar tu cuenta.");
+                    } finally {
+                        if (!cancelled) setLoading(false);
+                    }
+                })();
+            } else {
+                const deepLinkTarget = `${NATIVE_LOGIN_PREFIX}${browserUrl.search}${browserUrl.hash}`;
+                setInfo("Redirigiendo de vuelta a la app de escritorio...");
+                window.location.replace(deepLinkTarget);
+                window.setTimeout(() => {
+                    window.close();
+                    document.body.innerHTML = "<div style='font-family: sans-serif; padding: 24px; color: #222;'>Puedes cerrar esta ventana y volver a Grading App.</div>";
+                }, 800);
+            }
+        }
+
+        if (!isTauri()) {
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user, completeOAuthLogin, completeEmailConfirmation, navigate]);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError("");
+        setInfo("");
         if (!email || !password) {
             setError("Por favor, completa todos los campos.");
             return;
@@ -41,8 +166,11 @@ export function LoginPage() {
 
         try {
             const err = await loginWithCredentials(email, password);
-            if (err) { setError(err); return; }
-            navigate("/app", { replace: true });
+            if (err) {
+                setError(err);
+                return;
+            }
+            navigate(consumePostLoginRedirect(), { replace: true });
         } catch (err) {
             console.error("[login] DB error:", err);
             setError("Error al conectar con la base de datos. Intenta de nuevo.");
@@ -53,22 +181,60 @@ export function LoginPage() {
 
     const handleGoogle = async () => {
         setError("");
+        setInfo("");
         setLoading(true);
         try {
-            await new Promise((r) => setTimeout(r, 600));
-            setError("Inicio de sesión con Google no disponible en esta versión.");
-        } finally {
+            const result = await signInWithGoogle();
+            if (result.error) {
+                setError(result.error);
+                setLoading(false);
+                return;
+            }
+            if (!result.url) {
+                setError("No fue posible iniciar el flujo de Google.");
+                setLoading(false);
+                return;
+            }
+            if (isTauri()) {
+                await openUrl(result.url);
+                // En Tauri el usuario ya está en el browser externo — mantener loading hasta que regrese el deep link
+                return;
+            }
+            // En web: mantener loading=true mientras el browser navega al proveedor
+            window.location.href = result.url;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "No fue posible iniciar sesión con Google.";
+            setError(message);
             setLoading(false);
         }
     };
 
     const handleOutlook = async () => {
         setError("");
+        setInfo("");
         setLoading(true);
         try {
-            await new Promise((r) => setTimeout(r, 600));
-            setError("Inicio de sesión con Outlook no disponible en esta versión.");
-        } finally {
+            const result = await signInWithOutlook();
+            if (result.error) {
+                setError(result.error);
+                setLoading(false);
+                return;
+            }
+            if (!result.url) {
+                setError("No fue posible iniciar el flujo de Outlook.");
+                setLoading(false);
+                return;
+            }
+            if (isTauri()) {
+                await openUrl(result.url);
+                // En Tauri el usuario ya está en el browser externo — mantener loading hasta que regrese el deep link
+                return;
+            }
+            // En web: mantener loading=true mientras el browser navega al proveedor
+            window.location.href = result.url;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "No fue posible iniciar sesión con Outlook.";
+            setError(message);
             setLoading(false);
         }
     };
@@ -77,7 +243,7 @@ export function LoginPage() {
         <div className={styles.page}>
             <div className={styles.card}>
                 <div className={styles.logo}>
-                    <div className={styles.logoIcon}>G</div>
+                    <img src="/icon.png" alt="Grading App" className={styles.logoIcon} />
                     <h1>Grading App</h1>
                     <p>Inicia sesión para continuar</p>
                 </div>
@@ -100,7 +266,7 @@ export function LoginPage() {
                         <input
                             id="password"
                             type="password"
-                            placeholder="••••••••"
+                            placeholder="********"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
@@ -108,6 +274,7 @@ export function LoginPage() {
                         />
                     </div>
                     {error && <p className={styles.error}>{error}</p>}
+                    {info && <p className={styles.helper}>{info}</p>}
                     <button type="submit" className={styles.submitBtn} disabled={loading}>
                         {loading ? "Verificando..." : "Iniciar sesión"}
                     </button>
@@ -116,13 +283,17 @@ export function LoginPage() {
                 <div className={styles.divider}>o continúa con</div>
 
                 <div className={styles.providers}>
-                    <button className={styles.providerBtn} onClick={handleGoogle} disabled={loading}>
+                    <button type="button" className={styles.providerBtn} onClick={handleGoogle} disabled={loading}>
                         <GoogleIcon /> Continuar con Google
                     </button>
-                    <button className={styles.providerBtn} onClick={handleOutlook} disabled={loading}>
+                    <button type="button" className={styles.providerBtn} onClick={handleOutlook} disabled={loading}>
                         <MicrosoftIcon /> Continuar con Outlook
                     </button>
                 </div>
+
+                <p className={styles.authSwitch}>
+                    ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
+                </p>
             </div>
         </div>
     );

@@ -1,20 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { logout } from "../../features/auth/services/auth.service";
 import { useAuthStore } from "../../features/auth/store";
 import { useThemeStore } from "../../features/theme/store";
-import { useNotificationsStore, type NotifPriority } from "../../features/notifications/store";
+import { useNotificationsStore } from "../../features/notifications/store";
+import type { NotifPriority } from "../../features/notifications/types";
 import { BellIcon, CheckIcon, TrashIcon, UserIcon, SettingsIcon, LogOutIcon, SunIcon, MoonIcon } from "../../shared/ui/icons";
 import styles from "./Topbar.module.css";
-
-const TITLES: Record<string, string> = {
-    "/app":               "Asignaturas",
-    "/app/estudiantes":   "Estudiantes",
-    "/app/reportes":      "Reportes",
-    "/app/horarios":      "Horarios",
-    "/app/evaluaciones":  "Evaluaciones",
-    "/app/asistencia":    "Asistencia",
-    "/app/configuracion": "Configuración",
-};
 
 const PRIORITY_LABEL: Record<NotifPriority, string> = { alta: "Alta", media: "Media", baja: "Baja" };
 const PRIORITY_COLOR: Record<NotifPriority, string> = {
@@ -37,14 +29,13 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: () => voi
 
 export function Topbar() {
     const user   = useAuthStore((s) => s.user);
-    const logout = useAuthStore((s) => s.logout);
     const theme  = useThemeStore((s) => s.theme);
     const toggle = useThemeStore((s) => s.toggle);
 
     const { notifications, markRead, markAllRead, remove, clearRead } = useNotificationsStore();
 
-    const navigate     = useNavigate();
-    const { pathname } = useLocation();
+    const navigate = useNavigate();
+    useLocation();
 
     const [notifOpen,   setNotifOpen]   = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -57,8 +48,9 @@ export function Topbar() {
 
     const unread       = notifications.filter((n) => !n.read).length;
     const hasRead      = notifications.some((n) => n.read);
-    const title        = TITLES[pathname] ?? "Grading App";
-    const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
+    const handleLogout = () => {
+        void logout().finally(() => navigate("/login", { replace: true }));
+    };
 
     return (
         <header className={styles.topbar}>
@@ -143,7 +135,11 @@ export function Topbar() {
                 <div ref={profileRef} style={{ position: "relative" }}>
                     <button className={styles.profileBtn}
                         onClick={() => { setProfileOpen((v) => !v); setNotifOpen(false); }}>
-                        <div className={styles.avatar}>{user ? getInitials(user.name) : "?"}</div>
+                        <div className={styles.avatar}>
+                            {user?.avatarData
+                                ? <img src={user.avatarData} alt={user.name} className={styles.avatarImg} />
+                                : (user ? getInitials(user.name) : "?")}
+                        </div>
                         <span className={styles.profileName}>{user?.name ?? "Usuario"}</span>
                         <svg className={`${styles.chevron}${profileOpen ? ` ${styles.open}` : ""}`}
                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -153,8 +149,8 @@ export function Topbar() {
                     </button>
                     {profileOpen && (
                         <div className={styles.profilePanel}>
-                            <button className={styles.profileItem}><UserIcon /> Mi perfil</button>
-                            <button className={styles.profileItem}><SettingsIcon /> Configuración</button>
+                            <button className={styles.profileItem} onClick={() => { navigate("/app/perfil"); setProfileOpen(false); }}><UserIcon /> Mi perfil</button>
+                            <button className={styles.profileItem} onClick={() => { navigate("/app/configuracion"); setProfileOpen(false); }}><SettingsIcon /> Configuración</button>
                             <div className={styles.profileDivider} />
                             <button className={`${styles.profileItem} ${styles.profileItemDanger}`} onClick={handleLogout}>
                                 <LogOutIcon /> Cerrar sesión
@@ -166,3 +162,5 @@ export function Topbar() {
         </header>
     );
 }
+
+

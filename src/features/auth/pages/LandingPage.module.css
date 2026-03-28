@@ -192,11 +192,10 @@
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 1.75rem;
 }
-.overlayLogoIcon {
+.overlayLogoImage {
     width: 76px; height: 76px; background: #ffffff;
     border-radius: 18px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 2rem; font-weight: 900; color: #111111;
+    object-fit: cover;
     box-shadow: 0 0 40px rgba(255,255,255,0.2);
     animation: logoPulse 1s ease-in-out infinite; z-index: 1;
 }

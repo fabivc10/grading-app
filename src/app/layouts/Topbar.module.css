@@ -53,10 +53,10 @@
 .panel {
     position: absolute; top: calc(100% + 6px); right: 0;
     width: 340px;
-    background: var(--surface);
-    border: 1px solid var(--bd);
-    border-radius: 4px;
-    box-shadow: var(--shadow-lg);
+    background: var(--surfaceCardBg);
+    border: var(--surfaceCardBorder);
+    border-radius: var(--surfaceCardRadius);
+    box-shadow: var(--surfaceCardShadow);
     z-index: 200;
     overflow: hidden;
 }
@@ -164,6 +164,14 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 0.7rem; font-weight: 700; color: var(--accent-fg);
     flex-shrink: 0;
+    overflow: hidden;
+}
+
+.avatarImg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .profileName {
@@ -180,10 +188,10 @@
 .profilePanel {
     position: absolute; top: 54px; right: 1rem;
     width: 188px;
-    background: var(--surface);
-    border: 1px solid var(--bd);
-    border-radius: 4px;
-    box-shadow: var(--shadow-lg);
+    background: var(--surfaceCardBg);
+    border: var(--surfaceCardBorder);
+    border-radius: var(--surfaceCardRadius);
+    box-shadow: var(--surfaceCardShadow);
     z-index: 100;
     overflow: hidden;
     padding: 0.3rem;
