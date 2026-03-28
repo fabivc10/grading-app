@@ -458,6 +458,8 @@ async function runMigrations(db: Database) {
             await db.execute("ALTER TABLE institutions ADD COLUMN direccion_regional TEXT");
         if (!names.includes("circuito"))
             await db.execute("ALTER TABLE institutions ADD COLUMN circuito TEXT");
+        if (!names.includes("icon_path"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN icon_path TEXT");
         await db.execute("UPDATE schema_version SET version = 16 WHERE id = 1");
     }
 
@@ -465,6 +467,10 @@ async function runMigrations(db: Database) {
     // (version-gating was unreliable if a previous broken run advanced the
     //  schema_version counter without actually applying the ALTER TABLE)
     {
+        const instCols = await db.select<{ name: string }[]>("PRAGMA table_info(institutions)");
+        if (!instCols.map((c) => c.name).includes("icon_path"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN icon_path TEXT");
+
         const estCols = await db.select<{ name: string }[]>("PRAGMA table_info(estudiantes)");
         const estNames = estCols.map((c) => c.name);
         if (!estNames.includes("fecha_nacimiento"))
@@ -486,6 +492,35 @@ async function runMigrations(db: Database) {
         if (!asigCols.map((c) => c.name).includes("created_at"))
             await db.execute("ALTER TABLE asignaturas ADD COLUMN created_at TEXT DEFAULT ''");
 
+        const userCols = await db.select<{ name: string }[]>("PRAGMA table_info(users)");
+        const userNames = userCols.map((c) => c.name);
+        if (!userNames.includes("avatar_data"))
+            await db.execute("ALTER TABLE users ADD COLUMN avatar_data TEXT");
+        if (!userNames.includes("auth_provider")) {
+            await db.execute("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'");
+            await db.execute("UPDATE users SET auth_provider = 'email' WHERE auth_provider IS NULL OR auth_provider = ''");
+        }
+        if (!userNames.includes("external_auth_id"))
+            await db.execute("ALTER TABLE users ADD COLUMN external_auth_id TEXT");
+
+        const instColsWithOwner = await db.select<{ name: string }[]>("PRAGMA table_info(institutions)");
+        const instNames = instColsWithOwner.map((c) => c.name);
+        if (!instNames.includes("owner_user_id"))
+            await db.execute("ALTER TABLE institutions ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE");
+
+        const firstUser = await db.select<{ id: number }[]>("SELECT id FROM users ORDER BY id LIMIT 1");
+        if (firstUser[0]?.id) {
+            await db.execute(
+                "UPDATE institutions SET owner_user_id = ? WHERE owner_user_id IS NULL",
+                [firstUser[0].id]
+            );
+        }
+
+        const users = await db.select<{ id: number; name: string }[]>("SELECT id, name FROM users");
+        for (const user of users) {
+            await ensureInstitutionForUserRecord(db, user.id, user.name);
+        }
+
         await db.execute("UPDATE schema_version SET version = 19 WHERE id = 1");
     }
 
@@ -494,6 +529,21 @@ async function runMigrations(db: Database) {
         const entryCols = await db.select<{ name: string }[]>("PRAGMA table_info(eval_entries)");
         if (!entryCols.map((c) => c.name).includes("tipo"))
             await db.execute("ALTER TABLE eval_entries ADD COLUMN tipo TEXT NOT NULL DEFAULT 'numerica'");
+    }
+
+    {
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS local_access_guard (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                access_code TEXT NOT NULL DEFAULT '',
+                account_active INTEGER NOT NULL DEFAULT 0,
+                last_payment_date TEXT NOT NULL DEFAULT '',
+                last_access_date TEXT NOT NULL DEFAULT '',
+                blocked_reason TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+        `);
+        await db.execute("UPDATE schema_version SET version = 20 WHERE id = 1");
     }
 }
 
@@ -518,12 +568,58 @@ async function seedDemoInstitutions(db: Database) {
     );
     if (exists[0].count > 0) return;
 
-    await db.execute(`INSERT INTO institutions (name, code, address) VALUES
-        ('Instituto Nacional Central',  'INC', 'San Salvador'),
-        ('Colegio García Flamenco',     'CGF', 'Santa Ana'),
-        ('Centro Escolar España',       'CEE', 'San Miguel')`);
+    const admin = await db.select<{ id: number }[]>(
+        "SELECT id FROM users WHERE email = 'admin@grading.app' LIMIT 1"
+    );
+    const ownerId = admin[0]?.id ?? 1;
+
+    await db.execute(`INSERT INTO institutions (owner_user_id, name, code, address) VALUES
+        (${ownerId}, 'Instituto Nacional Central',  'INC', 'San Salvador'),
+        (${ownerId}, 'Colegio García Flamenco',     'CGF', 'Santa Ana'),
+        (${ownerId}, 'Centro Escolar España',       'CEE', 'San Miguel')`);
 
     await seedDemoData(db);
+}
+
+function slugifyInstitutionCode(value: string): string {
+    const normalized = value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .toUpperCase();
+    return normalized || "INST";
+}
+
+async function ensureInstitutionForUserRecord(db: Database, userId: number, userName: string): Promise<void> {
+    const existing = await db.select<{ id: number }[]>(
+        "SELECT id FROM institutions WHERE owner_user_id = ? LIMIT 1",
+        [userId]
+    );
+    if (existing[0]) return;
+
+    const baseCode = slugifyInstitutionCode(`inst-${userId}`);
+    let code = baseCode;
+    let suffix = 1;
+    while (true) {
+        const taken = await db.select<{ count: number }[]>(
+            "SELECT COUNT(*) as count FROM institutions WHERE code = ?",
+            [code]
+        );
+        if (!taken[0]?.count) break;
+        suffix += 1;
+        code = `${baseCode}-${suffix}`;
+    }
+
+    await db.execute(
+        "INSERT INTO institutions (owner_user_id, name, code, address) VALUES (?, ?, ?, ?)",
+        [userId, `Institución de ${userName}`, code, null]
+    );
+}
+
+export async function ensureInstitutionForUser(userId: number, userName: string): Promise<void> {
+    const db = await getDb();
+    await ensureInstitutionForUserRecord(db, userId, userName);
 }
 
 async function seedDemoData(db: Database) {

@@ -21,6 +21,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["grading-app"]
+      }
+    },
     "sql": {
       "preloadConnections": ["sqlite:grading.db"]
     }

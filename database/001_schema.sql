@@ -25,10 +25,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- ── Institutions ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS institutions (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    name    TEXT NOT NULL,
-    code    TEXT NOT NULL UNIQUE,
-    address TEXT
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    code          TEXT NOT NULL UNIQUE,
+    address       TEXT
 );
 
 -- ── Asignaturas ──────────────────────────────────────────────────────────────
@@ -158,4 +159,14 @@ CREATE TABLE IF NOT EXISTS student_cotidiano_items (
     nombre      TEXT    NOT NULL,
     descripcion TEXT    NOT NULL DEFAULT '',
     valor       REAL    NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS local_access_guard (
+    user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    access_code       TEXT    NOT NULL DEFAULT '',
+    account_active    INTEGER NOT NULL DEFAULT 0,
+    last_payment_date TEXT    NOT NULL DEFAULT '',
+    last_access_date  TEXT    NOT NULL DEFAULT '',
+    blocked_reason    TEXT    NOT NULL DEFAULT '',
+    updated_at        TEXT    NOT NULL DEFAULT ''
 );
