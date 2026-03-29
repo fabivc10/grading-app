@@ -28,11 +28,14 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
             {
-                element: <MainLayout />,
+                element: <AccessProtectedRoute />,
                 children: [
-                    { path: "pagos",            element: <PaymentsPage /> },
                     {
-                        element: <AccessProtectedRoute />,
+                        path: "pagos",
+                        element: <PaymentsPage />,
+                    },
+                    {
+                        element: <MainLayout />,
                         children: [
                             { index: true,              element: <SubjectsPage /> },
                             { path: "estudiantes",      element: <StudentsPage /> },

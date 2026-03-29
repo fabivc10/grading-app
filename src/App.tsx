@@ -1,16 +1,24 @@
 import "./assets/styles/app.css";
 import { useEffect } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { getCurrent, isRegistered, onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { RouterProvider } from "react-router-dom";
 import { useAuthStore } from "./features/auth/store";
 import { router } from "./app/router";
 import { Providers } from "./app/providers";
+import {
+    ensureNativeOAuthRegistration,
+    NATIVE_OAUTH_REDIRECT_URL,
+} from "./features/auth/services/shared/auth-config";
 
-const NATIVE_LOGIN_PREFIX =
-    import.meta.env.VITE_NATIVE_OAUTH_REDIRECT_URL ?? "grading-app://login";
 const PENDING_DEEP_LINK_KEY = "grading.pending_deep_link";
+
+type SingleInstancePayload = {
+    args?: string[];
+    cwd?: string;
+};
 
 export default function App() {
     const user = useAuthStore((s) => s.user);
@@ -23,6 +31,7 @@ export default function App() {
 
         let cancelled = false;
         let unlisten: (() => void) | undefined;
+        let unlistenSingleInstance: (() => void) | undefined;
         let releaseTopTimer: number | undefined;
         let clearAttentionTimer: number | undefined;
         let restoreTitleTimer: number | undefined;
@@ -86,27 +95,34 @@ export default function App() {
             window.location.replace(target);
         };
 
+        const findOAuthDeepLink = (candidates: string[] | undefined) =>
+            candidates?.find((value) => value.startsWith(NATIVE_OAUTH_REDIRECT_URL));
+
         void (async () => {
             try {
-                const registered = await isRegistered("grading-app");
-                if (!registered) {
-                    await register("grading-app");
-                }
+                await ensureNativeOAuthRegistration();
 
                 const urls = await getCurrent();
-                const currentUrl = urls?.find((url) => url.startsWith(NATIVE_LOGIN_PREFIX));
+                const currentUrl = findOAuthDeepLink(urls ?? undefined);
                 if (!cancelled && currentUrl) {
                     routeDeepLinkToLogin(currentUrl);
                 }
 
                 unlisten = await onOpenUrl((urls) => {
-                    const deepLinkUrl = urls.find((url) => url.startsWith(NATIVE_LOGIN_PREFIX));
+                    const deepLinkUrl = findOAuthDeepLink(urls);
+                    if (deepLinkUrl) {
+                        routeDeepLinkToLogin(deepLinkUrl);
+                    }
+                });
+
+                unlistenSingleInstance = await listen<SingleInstancePayload>("single-instance", (event) => {
+                    const deepLinkUrl = findOAuthDeepLink(event.payload?.args);
                     if (deepLinkUrl) {
                         routeDeepLinkToLogin(deepLinkUrl);
                     }
                 });
             } catch (error) {
-                console.error("[oauth] deep link listener failed:", error);
+                console.error("Deep link listener failed:", error);
             }
         })();
 
@@ -116,6 +132,7 @@ export default function App() {
             if (clearAttentionTimer) window.clearTimeout(clearAttentionTimer);
             if (restoreTitleTimer) window.clearTimeout(restoreTitleTimer);
             if (unlisten) unlisten();
+            if (unlistenSingleInstance) unlistenSingleInstance();
         };
     }, []);
 

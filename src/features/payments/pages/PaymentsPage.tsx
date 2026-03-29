@@ -6,6 +6,13 @@ import { logout } from "../../auth/services/auth.service";
 import { useAuthStore } from "../../auth/store";
 
 const POST_LOGIN_REDIRECT_KEY = "grading.post_login_redirect";
+const ACCESS_REDIRECT_KEY = "grading.access_redirect";
+
+function consumeAccessRedirect() {
+    const target = window.sessionStorage.getItem(ACCESS_REDIRECT_KEY) || "/app";
+    window.sessionStorage.removeItem(ACCESS_REDIRECT_KEY);
+    return target;
+}
 
 export function PaymentsPage() {
     const navigate = useNavigate();
@@ -13,15 +20,14 @@ export function PaymentsPage() {
     const status = useAccessStore((s) => s.status);
     const publicAccountId = useAccessStore((s) => s.publicAccountId);
     const error = useAccessStore((s) => s.error);
-    const checkAccess = useAccessStore((s) => s.checkAccess);
     const submitAccessCode = useAccessStore((s) => s.submitAccessCode);
     const accessCodeError = useAccessStore((s) => s.accessCodeError);
     const accessCodeBusy = useAccessStore((s) => s.accessCodeBusy);
 
     useEffect(() => {
-        if (!user) return;
-        void checkAccess(user);
-    }, [checkAccess, user]);
+        if (status !== "granted") return;
+        navigate(consumeAccessRedirect(), { replace: true });
+    }, [status, navigate]);
 
     if (!user) return null;
 
@@ -33,6 +39,7 @@ export function PaymentsPage() {
             error={error}
             onLogout={() => {
                 window.sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, "/app");
+                window.sessionStorage.removeItem(ACCESS_REDIRECT_KEY);
                 void logout().finally(() => navigate("/login", { replace: true }));
             }}
             onSubmitAccessCode={(code) => submitAccessCode(user, code)}

@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL =
@@ -7,7 +8,7 @@ const SUPABASE_PUBLISHABLE_KEY =
     "sb_publishable_LqDlil12QkihMK45sA-bJw_tFjiwvkv";
 
 const AUTH_FLOW_TYPE: "implicit" | "pkce" =
-    import.meta.env.VITE_SUPABASE_AUTH_FLOW_TYPE === "implicit"
+    isTauri() || import.meta.env.VITE_SUPABASE_AUTH_FLOW_TYPE === "implicit"
         ? "implicit"
         : "pkce";
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import styles from "./LoginPage.module.css";
+import styles from "./OAuthBridgePage.module.css";
 
 const NATIVE_LOGIN_PREFIX =
     import.meta.env.VITE_NATIVE_OAUTH_REDIRECT_URL ?? "grading-app://login";
@@ -19,25 +19,22 @@ export function OAuthBridgePage() {
         [url]
     );
 
-    const [message, setMessage] = useState("Redirigiendo a Grading App...");
-    const [showManualAction, setShowManualAction] = useState(false);
-    const [showCloseHint, setShowCloseHint] = useState(false);
+    const [message, setMessage] = useState("Estamos abriendo Grading App automaticamente.");
+
+    useEffect(() => {
+        document.title = "Grading App";
+    }, []);
 
     useEffect(() => {
         if (!hasOAuthPayload) {
-            setMessage("No se encontro informacion de autenticacion en este callback.");
-            setShowManualAction(false);
-            setShowCloseHint(false);
+            setMessage("No encontramos informacion valida de autenticacion en este callback.");
             return;
         }
 
-        // Intentar redirect automático inmediato
         window.location.assign(deepLinkTarget);
 
-        // Fallback: si no redirigió en 1.5s, mostrar el botón manual
         const timer = window.setTimeout(() => {
-            setMessage("Haz clic para volver a Grading App.");
-            setShowManualAction(true);
+            setMessage("Si la app principal ya esta visible, vuelve a Grading App y cierra esta pestana.");
         }, 1500);
 
         return () => {
@@ -45,54 +42,47 @@ export function OAuthBridgePage() {
         };
     }, [deepLinkTarget, hasOAuthPayload]);
 
-    const handleOpenApp = () => {
-        setMessage("Si Grading App ya se abrio, puedes cerrar esta ventana.");
-        setShowCloseHint(true);
-        window.location.assign(deepLinkTarget);
-    };
-
-    const handleCloseWindow = () => {
-        window.open("", "_self");
-        window.close();
-    };
-
     return (
-        <div className={styles.page}>
-            <div className={styles.card}>
-                <div className={styles.logo}>
-                    <div className={styles.logoIcon}>G</div>
-                    <h1>Acceso completado</h1>
-                    <p>La autenticacion termino correctamente.</p>
+        <main className={styles.page}>
+            <div className={styles.backgroundGlow} aria-hidden="true" />
+            <section className={styles.card}>
+                <div className={styles.hero}>
+                    <div className={styles.logoFrame}>
+                        <img src="/icon.png" alt="Grading App" className={styles.logoIcon} />
+                    </div>
+
+                    <span className={styles.statusPill}>
+                        {hasOAuthPayload ? "Acceso completado" : "Callback incompleto"}
+                    </span>
+
+                    <h1 className={styles.title}>Grading App</h1>
+                    <p className={styles.subtitle}>
+                        {hasOAuthPayload
+                            ? "La autenticacion se completo correctamente."
+                            : "No pudimos confirmar el acceso desde esta pagina."}
+                    </p>
                 </div>
 
-                <p className={styles.helper}>{message}</p>
+                <div className={styles.infoPanel}>
+                    <section className={styles.infoSection}>
+                        <p className={styles.sectionLabel}>Estado actual</p>
+                        <p className={styles.messageText}>{message}</p>
+                    </section>
 
-                {showManualAction ? (
-                    <button
-                        type="button"
-                        className={styles.submitBtn}
-                        onClick={handleOpenApp}
-                        style={{ width: "100%" }}
-                    >
-                        Volver a Grading App
-                    </button>
-                ) : null}
+                    <section className={styles.infoSection}>
+                        <p className={styles.sectionLabel}>Siguiente paso</p>
+                        <p className={styles.noteText}>
+                            {hasOAuthPayload
+                                ? "Vuelve a Grading App para continuar. Esta pagina no requiere ninguna accion adicional."
+                                : "Regresa a Grading App e intenta el inicio de sesion nuevamente."}
+                        </p>
+                    </section>
+                </div>
 
-                <button
-                    type="button"
-                    className={styles.providerBtn}
-                    onClick={handleCloseWindow}
-                    style={{ width: "100%" }}
-                >
-                    Cerrar esta ventana
-                </button>
-
-                {showCloseHint ? (
-                    <p className={styles.helper}>
-                        Si ya ves la app principal, esta ventana ya no es necesaria.
-                    </p>
-                ) : null}
-            </div>
-        </div>
+                <div className={styles.noticeBar}>
+                    Esta pagina solo confirma el acceso. Puedes cerrarla despues de volver a la app.
+                </div>
+            </section>
+        </main>
     );
 }

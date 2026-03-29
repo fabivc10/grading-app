@@ -2,6 +2,8 @@ import type { User as SupabaseAuthUser } from "@supabase/supabase-js";
 import { supabase } from "../../../shared/lib/supabase";
 import type { AuthProvider } from "../types";
 
+type OAuthProgressReporter = (step: string) => void;
+
 function getUrlHashParams(url: URL) {
     return new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
 }
@@ -38,12 +40,24 @@ function inferOAuthProvider(user: SupabaseAuthUser): Extract<AuthProvider, "goog
     return "outlook";
 }
 
-async function applyAuthSession(url: URL, clearBrowserCode: boolean): Promise<void> {
+function reportOAuthProgress(onProgress: OAuthProgressReporter | undefined, step: string) {
+    onProgress?.(step);
+}
+
+async function applyAuthSession(
+    url: URL,
+    clearBrowserCode: boolean,
+    onProgress?: OAuthProgressReporter
+): Promise<void> {
     const hashParams = getUrlHashParams(url);
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
+    const code = url.searchParams.get("code");
+
+    reportOAuthProgress(onProgress, "Procesando respuesta del proveedor...");
 
     if (accessToken && refreshToken) {
+        reportOAuthProgress(onProgress, "Guardando sesion OAuth en la app...");
         const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -51,9 +65,9 @@ async function applyAuthSession(url: URL, clearBrowserCode: boolean): Promise<vo
         if (error) throw error;
     }
 
-    const code = url.searchParams.get("code");
     if (!code) return;
 
+    reportOAuthProgress(onProgress, "Intercambiando codigo OAuth...");
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) throw error;
 
@@ -65,7 +79,8 @@ async function applyAuthSession(url: URL, clearBrowserCode: boolean): Promise<vo
 
 export async function completeOAuthProviderLogin(
     provider: Extract<AuthProvider, "google" | "outlook"> | null | undefined,
-    sourceUrl = window.location.href
+    sourceUrl = window.location.href,
+    onProgress?: OAuthProgressReporter
 ) {
     const url = new URL(sourceUrl);
     const authError = getAuthError(url);
@@ -73,8 +88,9 @@ export async function completeOAuthProviderLogin(
         throw new Error(authError);
     }
 
-    await applyAuthSession(url, true);
+    await applyAuthSession(url, true, onProgress);
 
+    reportOAuthProgress(onProgress, "Consultando usuario autenticado...");
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
 

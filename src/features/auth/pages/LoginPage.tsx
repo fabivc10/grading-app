@@ -3,6 +3,10 @@ import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Link, useNavigate } from "react-router-dom";
 import {
+    ensureNativeOAuthRegistration,
+    NATIVE_OAUTH_REDIRECT_URL,
+} from "../services/shared/auth-config";
+import {
     completeEmailConfirmation,
     completeOAuthLogin,
     loginWithCredentials,
@@ -31,8 +35,6 @@ const MicrosoftIcon = () => (
 );
 
 const SOCIAL_PROVIDER_KEY = "grading.social_provider";
-const NATIVE_LOGIN_PREFIX =
-    import.meta.env.VITE_NATIVE_OAUTH_REDIRECT_URL ?? "grading-app://login";
 const PENDING_DEEP_LINK_KEY = "grading.pending_deep_link";
 const POST_LOGIN_REDIRECT_KEY = "grading.post_login_redirect";
 
@@ -43,7 +45,6 @@ export function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
-    const [info, setInfo] = useState("");
     const [loading, setLoading] = useState(false);
     const oauthInFlight = useRef(false);
 
@@ -71,7 +72,6 @@ export function LoginPage() {
             oauthInFlight.current = true;
             setLoading(true);
             setError("");
-            setInfo("");
             try {
                 const err = await completeOAuthLogin(undefined, sourceUrl);
                 if (cancelled) return;
@@ -103,7 +103,7 @@ export function LoginPage() {
         const hasStoredProvider = Boolean(sessionStorage.getItem(SOCIAL_PROVIDER_KEY));
 
         if (deepLinkSource) {
-            void finishOAuth(decodeURIComponent(deepLinkSource));
+            void finishOAuth(deepLinkSource);
             return () => {
                 cancelled = true;
             };
@@ -116,7 +116,6 @@ export function LoginPage() {
                 void (async () => {
                     setLoading(true);
                     setError("");
-                    setInfo("");
                     try {
                         const err = await completeEmailConfirmation(window.location.href);
                         if (cancelled) return;
@@ -133,8 +132,7 @@ export function LoginPage() {
                     }
                 })();
             } else {
-                const deepLinkTarget = `${NATIVE_LOGIN_PREFIX}${browserUrl.search}${browserUrl.hash}`;
-                setInfo("Redirigiendo de vuelta a la app de escritorio...");
+                const deepLinkTarget = `${NATIVE_OAUTH_REDIRECT_URL}${browserUrl.search}${browserUrl.hash}`;
                 window.location.replace(deepLinkTarget);
                 window.setTimeout(() => {
                     window.close();
@@ -157,7 +155,6 @@ export function LoginPage() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError("");
-        setInfo("");
         if (!email || !password) {
             setError("Por favor, completa todos los campos.");
             return;
@@ -181,7 +178,6 @@ export function LoginPage() {
 
     const handleGoogle = async () => {
         setError("");
-        setInfo("");
         setLoading(true);
         try {
             const result = await signInWithGoogle();
@@ -196,6 +192,7 @@ export function LoginPage() {
                 return;
             }
             if (isTauri()) {
+                await ensureNativeOAuthRegistration();
                 await openUrl(result.url);
                 // En Tauri el usuario ya está en el browser externo — mantener loading hasta que regrese el deep link
                 return;
@@ -211,7 +208,6 @@ export function LoginPage() {
 
     const handleOutlook = async () => {
         setError("");
-        setInfo("");
         setLoading(true);
         try {
             const result = await signInWithOutlook();
@@ -226,6 +222,7 @@ export function LoginPage() {
                 return;
             }
             if (isTauri()) {
+                await ensureNativeOAuthRegistration();
                 await openUrl(result.url);
                 // En Tauri el usuario ya está en el browser externo — mantener loading hasta que regrese el deep link
                 return;
@@ -274,7 +271,6 @@ export function LoginPage() {
                         />
                     </div>
                     {error && <p className={styles.error}>{error}</p>}
-                    {info && <p className={styles.helper}>{info}</p>}
                     <button type="submit" className={styles.submitBtn} disabled={loading}>
                         {loading ? "Verificando..." : "Iniciar sesión"}
                     </button>

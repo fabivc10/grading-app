@@ -9,6 +9,8 @@ import type { AuthProvider, User } from "../types";
 import { getPasswordShadowHash } from "./shared/auth-config";
 import * as authUserService from "./shared/auth-user.service";
 
+type OAuthProgressReporter = (step: string) => void;
+
 const SOCIAL_PROVIDER_KEY = "grading.social_provider";
 const PENDING_DEEP_LINK_KEY = "grading.pending_deep_link";
 
@@ -47,6 +49,10 @@ function clearTransientAuthState() {
         window.sessionStorage.removeItem(PENDING_DEEP_LINK_KEY);
         window.localStorage.removeItem(SOCIAL_PROVIDER_KEY);
     }
+}
+
+function reportOAuthProgress(onProgress: OAuthProgressReporter | undefined, step: string) {
+    onProgress?.(step);
 }
 
 export async function emailExists(email: string): Promise<boolean> {
@@ -132,23 +138,36 @@ export async function signInWithOutlook(): Promise<{ url: string | null; error: 
 
 export async function completeOAuthLogin(
     provider?: Extract<AuthProvider, "google" | "outlook"> | null,
-    sourceUrl?: string
+    sourceUrl?: string,
+    onProgress?: OAuthProgressReporter
 ): Promise<string | null> {
     try {
         const resolvedProvider = provider ?? getStoredOAuthProvider();
-        const completed = await oauthProvider.completeOAuthProviderLogin(resolvedProvider, sourceUrl);
+        reportOAuthProgress(onProgress, "Preparando sesion OAuth...");
+        const completed = await oauthProvider.completeOAuthProviderLogin(
+            resolvedProvider,
+            sourceUrl,
+            onProgress
+        );
         if (!completed.authUser || !completed.provider) {
             clearTransientAuthState();
             return "No fue posible completar el inicio de sesion social.";
         }
 
-        const user = await authUserService.syncSupabaseAuthUser(completed.authUser, completed.provider);
+        reportOAuthProgress(onProgress, "Sincronizando usuario local...");
+        const user = await authUserService.syncSupabaseAuthUser(
+            completed.authUser,
+            completed.provider,
+            onProgress
+        );
         if (!user) {
             clearTransientAuthState();
             return "No fue posible completar el inicio de sesion social.";
         }
 
+        reportOAuthProgress(onProgress, "Activando sesion local...");
         setAuthenticatedUser(user);
+        reportOAuthProgress(onProgress, "Abriendo la app...");
         clearTransientAuthState();
         return null;
     } catch (error) {

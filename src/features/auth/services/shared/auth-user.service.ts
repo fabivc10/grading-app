@@ -10,6 +10,10 @@ import * as localAuthRepo from "../../repositories/auth-user.repository";
 import type { AuthProvider, User, UserDTO } from "../../types";
 import { getPasswordShadowHash } from "./auth-config";
 
+type OAuthProgressReporter = (step: string) => void;
+
+const OAUTH_STEP_TIMEOUT_MS = 15_000;
+
 function isLocalFilePath(value: string) {
     return !value.startsWith("data:") && !value.startsWith("http://") && !value.startsWith("https://");
 }
@@ -113,6 +117,31 @@ export function inferOAuthProvider(user: SupabaseAuthUser): Extract<User["provid
     return "outlook";
 }
 
+function reportOAuthProgress(onProgress: OAuthProgressReporter | undefined, step: string) {
+    onProgress?.(step);
+}
+
+async function withOAuthTimeout<T>(
+    label: string,
+    task: () => Promise<T>,
+    onProgress?: OAuthProgressReporter,
+): Promise<T> {
+    reportOAuthProgress(onProgress, label);
+
+    let timeoutId = 0;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+            reject(new Error(`Tiempo agotado en OAuth: ${label}`));
+        }, OAUTH_STEP_TIMEOUT_MS);
+    });
+
+    try {
+        return await Promise.race([task(), timeoutPromise]);
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+}
+
 async function persistOAuthAvatar(
     sbUser: SupabaseAuthUser,
     oldPath: string | null
@@ -129,55 +158,132 @@ async function persistOAuthAvatar(
 
 export async function syncSupabaseAuthUser(
     sbUser: SupabaseAuthUser,
-    provider: AuthProvider
+    provider: AuthProvider,
+    onProgress?: OAuthProgressReporter
 ): Promise<User | null> {
     const normalizedEmail = getOAuthEmail(sbUser) ?? getFallbackOAuthEmail(provider, sbUser);
     if (!normalizedEmail) return null;
 
-    const avatarPath = await persistOAuthAvatar(sbUser, null);
+    const avatarPath = await withOAuthTimeout(
+        "Preparando datos locales del perfil...",
+        () => persistOAuthAvatar(sbUser, null),
+        onProgress
+    );
     const displayName = getDisplayName(sbUser);
 
-    const existingByExternal = await localAuthRepo.findUserByExternalAuth(provider, sbUser.id);
+    const existingByExternal = await withOAuthTimeout(
+        "Buscando usuario local vinculado...",
+        () => localAuthRepo.findUserByExternalAuth(provider, sbUser.id),
+        onProgress
+    );
     if (existingByExternal) {
-        const nextAvatarPath = await persistOAuthAvatar(sbUser, existingByExternal.avatar_data);
+        const nextAvatarPath = await withOAuthTimeout(
+            "Preparando datos locales del perfil...",
+            () => persistOAuthAvatar(sbUser, existingByExternal.avatar_data),
+            onProgress
+        );
         if (nextAvatarPath !== existingByExternal.avatar_data) {
-            await localAuthRepo.updateUserAvatar(existingByExternal.id, nextAvatarPath);
+            await withOAuthTimeout(
+                "Actualizando perfil local...",
+                () => localAuthRepo.updateUserAvatar(existingByExternal.id, nextAvatarPath),
+                onProgress
+            );
             existingByExternal.avatar_data = nextAvatarPath;
         }
         if (provider === "email" && existingByExternal.hash !== getPasswordShadowHash(sbUser.id)) {
-            await localAuthRepo.updateUserPassword(existingByExternal.id, getPasswordShadowHash(sbUser.id));
+            await withOAuthTimeout(
+                "Actualizando credenciales locales...",
+                () => localAuthRepo.updateUserPassword(existingByExternal.id, getPasswordShadowHash(sbUser.id)),
+                onProgress
+            );
         }
-        await ensureInstitutionForUser(existingByExternal.id, existingByExternal.name);
-        return toModel(existingByExternal);
+        await withOAuthTimeout(
+            "Verificando institucion inicial...",
+            () => ensureInstitutionForUser(existingByExternal.id, existingByExternal.name),
+            onProgress
+        );
+        return withOAuthTimeout(
+            "Cargando perfil final...",
+            () => toModel(existingByExternal),
+            onProgress
+        );
     }
 
-    const existingByEmail = await localAuthRepo.findUserByEmail(normalizedEmail);
+    const existingByEmail = await withOAuthTimeout(
+        "Buscando usuario local por correo...",
+        () => localAuthRepo.findUserByEmail(normalizedEmail),
+        onProgress
+    );
     if (existingByEmail) {
-        await localAuthRepo.linkUserToExternalAuth(existingByEmail.id, provider, sbUser.id);
-        const nextAvatarPath = await persistOAuthAvatar(sbUser, existingByEmail.avatar_data);
+        await withOAuthTimeout(
+            "Vinculando cuenta existente...",
+            () => localAuthRepo.linkUserToExternalAuth(existingByEmail.id, provider, sbUser.id),
+            onProgress
+        );
+        const nextAvatarPath = await withOAuthTimeout(
+            "Preparando datos locales del perfil...",
+            () => persistOAuthAvatar(sbUser, existingByEmail.avatar_data),
+            onProgress
+        );
         if (nextAvatarPath !== existingByEmail.avatar_data) {
-            await localAuthRepo.updateUserAvatar(existingByEmail.id, nextAvatarPath);
+            await withOAuthTimeout(
+                "Actualizando perfil local...",
+                () => localAuthRepo.updateUserAvatar(existingByEmail.id, nextAvatarPath),
+                onProgress
+            );
         }
         if (provider === "email" && existingByEmail.hash !== getPasswordShadowHash(sbUser.id)) {
-            await localAuthRepo.updateUserPassword(existingByEmail.id, getPasswordShadowHash(sbUser.id));
+            await withOAuthTimeout(
+                "Actualizando credenciales locales...",
+                () => localAuthRepo.updateUserPassword(existingByEmail.id, getPasswordShadowHash(sbUser.id)),
+                onProgress
+            );
         }
-        await ensureInstitutionForUser(existingByEmail.id, existingByEmail.name);
-        const linked = await localAuthRepo.findUserById(existingByEmail.id);
-        return linked ? toModel(linked) : null;
+        await withOAuthTimeout(
+            "Verificando institucion inicial...",
+            () => ensureInstitutionForUser(existingByEmail.id, existingByEmail.name),
+            onProgress
+        );
+        const linked = await withOAuthTimeout(
+            "Recargando usuario local vinculado...",
+            () => localAuthRepo.findUserById(existingByEmail.id),
+            onProgress
+        );
+        return linked
+            ? withOAuthTimeout(
+                "Cargando perfil final...",
+                () => toModel(linked),
+                onProgress
+            )
+            : null;
     }
 
-    const created = await localAuthRepo.createAuthUser(
-        normalizedEmail,
-        displayName,
-        getPasswordShadowHash(sbUser.id),
-        provider,
-        sbUser.id,
-        avatarPath
+    const created = await withOAuthTimeout(
+        "Creando usuario local...",
+        () => localAuthRepo.createAuthUser(
+            normalizedEmail,
+            displayName,
+            getPasswordShadowHash(sbUser.id),
+            provider,
+            sbUser.id,
+            avatarPath
+        ),
+        onProgress
     );
     if (created) {
-        await ensureInstitutionForUser(created.id, created.name);
+        await withOAuthTimeout(
+            "Creando institucion inicial...",
+            () => ensureInstitutionForUser(created.id, created.name),
+            onProgress
+        );
     }
-    return created ? toModel(created) : null;
+    return created
+        ? withOAuthTimeout(
+            "Cargando perfil final...",
+            () => toModel(created),
+            onProgress
+        )
+        : null;
 }
 
 export async function fetchUserById(id: number): Promise<User | null> {

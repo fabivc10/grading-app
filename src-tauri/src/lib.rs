@@ -3,9 +3,49 @@ use reqwest::header::CONTENT_TYPE;
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager};
+
+const NATIVE_OAUTH_LOGIN_PREFIX: &str = "grading-app://login";
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SingleInstancePayload {
+    args: Vec<String>,
+    cwd: String,
+}
+
+fn route_oauth_deep_link_to_login(app: &AppHandle, deep_link_url: &str) {
+    if !deep_link_url.starts_with(NATIVE_OAUTH_LOGIN_PREFIX) {
+        return;
+    }
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let Ok(url_json) = serde_json::to_string(deep_link_url) else {
+        return;
+    };
+
+    let script = format!(
+        r#"
+        try {{
+            const deepLinkUrl = {url_json};
+            window.sessionStorage.setItem("grading.pending_deep_link", deepLinkUrl);
+            const target = "/login?deep_link=" + encodeURIComponent(deepLinkUrl);
+            if (`${{window.location.pathname}}${{window.location.search}}` !== target) {{
+                window.location.replace(target);
+            }}
+        }} catch (error) {{
+            console.error("Failed to route deep link from Rust", error);
+        }}
+        "#
+    );
+
+    let _ = window.eval(&script);
+}
 
 fn sanitize_stem(value: &str) -> String {
     let cleaned: String = value
@@ -178,7 +218,13 @@ async fn download_profile_picture(
     image_url: String,
     old_path: Option<String>,
 ) -> Result<String, String> {
-    let response = reqwest::get(&image_url).await.map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client.get(&image_url).send().await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("No fue posible descargar la foto de perfil: {}", response.status()));
     }
@@ -212,8 +258,11 @@ fn delete_profile_picture(path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.emit("single-instance", ());
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            if let Some(deep_link_url) = args.iter().find(|value| value.starts_with(NATIVE_OAUTH_LOGIN_PREFIX)) {
+                route_oauth_deep_link_to_login(app, deep_link_url);
+            }
+            let _ = app.emit("single-instance", SingleInstancePayload { args, cwd });
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())

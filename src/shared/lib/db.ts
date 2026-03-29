@@ -6,10 +6,11 @@ let _db: Database | null = null;
 let _initPromise: Promise<Database> | null = null;
 
 export async function getDb(): Promise<Database> {
+    if (_db) return _db;
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
-        const db = _db ?? await Database.load("sqlite:grading.db");
+        const db = await Database.load("sqlite:grading.db");
         await runMigrations(db);
         _db = db;
         return db;
@@ -17,7 +18,7 @@ export async function getDb(): Promise<Database> {
         _initPromise = null;
         throw err;
     }).finally(() => {
-        _initPromise = null; // always allow next call to re-check migrations
+        _initPromise = null;
     });
 
     return _initPromise;
@@ -573,10 +574,21 @@ async function seedDemoInstitutions(db: Database) {
     );
     const ownerId = admin[0]?.id ?? 1;
 
-    await db.execute(`INSERT INTO institutions (owner_user_id, name, code, address) VALUES
-        (${ownerId}, 'Instituto Nacional Central',  'INC', 'San Salvador'),
-        (${ownerId}, 'Colegio García Flamenco',     'CGF', 'Santa Ana'),
-        (${ownerId}, 'Centro Escolar España',       'CEE', 'San Miguel')`);
+    const institutionColumns = await db.select<{ name: string }[]>("PRAGMA table_info(institutions)");
+    const hasOwnerUserId = institutionColumns.some((column) => column.name === "owner_user_id");
+
+    if (hasOwnerUserId) {
+        await db.execute(`INSERT INTO institutions (owner_user_id, name, code, address) VALUES
+            (${ownerId}, 'Instituto Nacional Central',  'INC', 'San Salvador'),
+            (${ownerId}, 'Colegio García Flamenco',     'CGF', 'Santa Ana'),
+            (${ownerId}, 'Centro Escolar España',       'CEE', 'San Miguel')`);
+    } else {
+        // Older schema versions create demo institutions before owner_user_id exists.
+        await db.execute(`INSERT INTO institutions (name, code, address) VALUES
+            ('Instituto Nacional Central',  'INC', 'San Salvador'),
+            ('Colegio García Flamenco',     'CGF', 'Santa Ana'),
+            ('Centro Escolar España',       'CEE', 'San Miguel')`);
+    }
 
     await seedDemoData(db);
 }

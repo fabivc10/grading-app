@@ -7,6 +7,12 @@
     padding: 1rem;
 }
 
+.bridgePage {
+    background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 32%),
+        linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--surface) 70%, var(--bg) 30%));
+}
+
 .card {
     background: var(--surface);
     border: 1px solid var(--bd);
@@ -15,6 +21,26 @@
     width: 100%;
     max-width: 380px;
     box-shadow: var(--shadow-lg);
+}
+
+.bridgeCard {
+    background: color-mix(in srgb, var(--surface) 92%, black 8%);
+    border: 1px solid color-mix(in srgb, var(--bd) 75%, white 25%);
+    border-radius: 24px;
+    padding: 2.5rem 2.25rem;
+    width: 100%;
+    max-width: 430px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+    position: relative;
+    overflow: hidden;
+}
+
+.bridgeCard::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 45%);
+    pointer-events: none;
 }
 
 .logo { text-align: center; margin-bottom: 2rem; }
@@ -26,6 +52,22 @@
     display: block;
     object-fit: cover;
     margin: 0 auto 0.875rem;
+}
+
+.bridgeStatus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.9rem;
+    padding: 0.38rem 0.78rem;
+    border-radius: 999px;
+    background: rgba(80, 189, 127, 0.14);
+    border: 1px solid rgba(80, 189, 127, 0.24);
+    color: #9de2b8;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .logo h1 { font-size: 1.375rem; font-weight: 700; color: var(--tx-1); letter-spacing: -0.5px; }
@@ -67,6 +109,17 @@
     padding: 0.5rem 0.75rem;
 }
 
+.bridgeMessage {
+    font-size: 0.9375rem;
+    color: var(--tx-2);
+    background: color-mix(in srgb, var(--surface-2) 86%, transparent 14%);
+    border: 1px solid var(--bd);
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
 .submitBtn {
     padding: 0.65rem;
     background: var(--accent); color: var(--accent-fg);
@@ -96,6 +149,14 @@
 }
 .providerBtn:hover  { background: var(--surface-2); border-color: var(--tx-3); }
 .providerBtn svg    { width: 19px; height: 19px; flex-shrink: 0; }
+
+.bridgeNote {
+    margin-top: 0.9rem;
+    text-align: center;
+    color: var(--tx-3);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
 
 .authSwitch {
     margin-top: 1rem;

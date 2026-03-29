@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import { useAuthStore } from "../../features/auth/store";
 import { useThemeStore } from "../../features/theme/store";
 import { useInstitutionStore } from "../../features/institution/store";
@@ -16,6 +17,7 @@ import {
 } from "../../features/settings/constants";
 import { useConfiguracionStore } from "../../features/settings/store";
 import { AlertChecker } from "../bootstrap/AlertChecker";
+import { getDb } from "../../shared/lib/db";
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ThemeSync Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Applies the stored theme to <html data-theme="..."> on first render and changes.
@@ -38,6 +40,12 @@ function DbInit() {
     const loadHorarios     = useHorariosStore((s) => s.load);
     const loadEvaluaciones   = useEvaluacionesStore((s) => s.load);
     const loadConfiguracion  = useConfiguracionStore((s) => s.loadFromDb);
+
+    useEffect(() => {
+        if (!isTauri()) return;
+
+        void getDb().catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (!user) {
