@@ -844,6 +844,123 @@
     gap: 0.7rem;
 }
 
+.row3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.7rem;
+}
+
+.row3WithFull {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
+}
+
+.fullRow {
+    grid-column: 1 / -1;
+}
+
+.row3WithFull > * {
+    min-width: 0;
+}
+
+.addEvalModal {
+    max-width: 640px;
+}
+
+.formControl {
+    min-height: 2.375rem;
+    box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+    .row2,
+    .row3,
+    .row3WithFull {
+        grid-template-columns: 1fr;
+    }
+
+    .fullRow {
+        grid-column: auto;
+    }
+}
+
+.dropdownField {
+    position: relative;
+}
+
+.dropdownTrigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.36rem 0.6rem;
+    border: 1.5px solid var(--input-bd);
+    border-radius: 3px;
+    background: var(--input-bg);
+    color: var(--tx-1);
+    cursor: pointer;
+}
+
+.dropdownTriggerOpen {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+.dropdownValue,
+.dropdownPlaceholder {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 0.8125rem;
+}
+
+.dropdownPlaceholder {
+    color: var(--tx-3);
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: var(--surface);
+    border: 1px solid var(--bd);
+    border-radius: 4px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.dropdownOptions {
+    display: flex;
+    flex-direction: column;
+    max-height: 10.5rem;
+    overflow: auto;
+    padding: 0.35rem 0.45rem;
+    gap: 0.35rem;
+}
+
+.categoryField {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.categoryIndicator {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: var(--tx-3);
+}
+
+.categoryIndicatorAlert {
+    color: var(--danger);
+}
+
 .formInput {
     padding: 0.36rem 0.6rem;
     border: 1.5px solid var(--input-bd);
@@ -854,6 +971,8 @@
     outline: none;
     transition: border-color 0.15s;
     width: 100%;
+    min-height: 2.375rem;
+    box-sizing: border-box;
 }
 .formInput:focus {
     border-color: var(--input-focus);
@@ -864,12 +983,17 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    max-height: 180px;
+    max-height: 10.5rem;
+    min-height: 2.375rem;
     overflow: auto;
     padding: 0.45rem 0.5rem;
     border: 1.5px solid var(--input-bd);
     border-radius: 3px;
     background: var(--input-bg);
+    box-sizing: border-box;
+}
+.multiSelectListEmpty {
+    justify-content: center;
 }
 .multiSelectOption {
     display: flex;
@@ -887,6 +1011,25 @@
 }
 .multiSelectOption span {
     color: var(--tx-2);
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.multiSelectOptionDisabled {
+    opacity: 0.5;
+}
+.multiSelectOptionDisabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+.multiSelectOptionDisabled span {
+    color: var(--tx-3);
+}
+.multiSelectEmptyText {
+    color: var(--tx-3);
+    font-size: 0.8125rem;
+    line-height: 1.2;
 }
 .sumLine {
     font-size: 0.8rem;
@@ -1018,6 +1161,11 @@
 }
 .addEvalBtn:hover {
     background: var(--primary-action-bg-hover);
+}
+.addEvalBtn svg {
+    width: var(--primary-action-icon-size);
+    height: var(--primary-action-icon-size);
+    flex-shrink: 0;
 }
 
 /* ── Category radio chips (AddEvalModal) ── */

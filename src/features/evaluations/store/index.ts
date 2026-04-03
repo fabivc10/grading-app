@@ -14,7 +14,7 @@ type EvaluacionesState = {
     load: (institutionId: number) => Promise<void>;
     updateRecord: (id: string, patch: Partial<StudentEval>) => Promise<void>;
     deleteRecord: (id: string) => Promise<void>;
-    addEvalEntry: (recordIds: string[], category: EvalCategory, nombre: string, items: EvalEntry["items"], semestre: 's1' | 's2', tipo: EvalTipo) => Promise<void>;
+    addEvalEntry: (recordIds: string[], category: EvalCategory, nombre: string, pct: number, items: EvalEntry["items"], semestre: 's1' | 's2', tipo: EvalTipo) => Promise<void>;
     updateConducta: (estudianteId: string, conductaPct: number) => Promise<void>;
     setWeights: (w: EvalWeights) => void;
 };
@@ -49,9 +49,8 @@ export const useEvaluacionesStore = create<EvaluacionesState>()((set) => ({
         set((s) => ({ records: s.records.filter((r) => r.id !== id) }));
     },
 
-    addEvalEntry: async (recordIds, category, nombre, items, semestre, tipo) => {
-        const created = await svc.addEvalEntryBatch(recordIds, category, nombre, items, semestre, tipo);
-        const pct = items.reduce((s, i) => s + i.valor, 0);
+    addEvalEntry: async (recordIds, category, nombre, pct, items, semestre, tipo) => {
+        const created = await svc.addEvalEntryBatch(recordIds, category, nombre, pct, items, semestre, tipo);
         set((s) => ({
             records: s.records.map((r) => {
                 const match = created.find((c) => c.recordId === r.id);
@@ -73,3 +72,5 @@ export const useEvaluacionesStore = create<EvaluacionesState>()((set) => ({
 
     setWeights: (w) => set({ weights: w }),
 }));
+
+

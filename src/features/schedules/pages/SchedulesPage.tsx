@@ -10,9 +10,9 @@ import styles from "./SchedulesPage.module.css";
 
 type SortKey = "nombre" | "lecciones" | "creacion";
 const SORT_LABELS: Record<SortKey, string> = {
-    nombre:   "Alfabticamente",
+    nombre:   "Alfab\u00e9ticamente",
     lecciones: "Lecciones",
-    creacion:  "Fecha de creacin",
+    creacion:  "Fecha de creaci\u00f3n",
 };
 
 //  Constants 
@@ -20,7 +20,7 @@ const SLOT_COUNT    = 60;   // 7:00  16:50, one slot = 10 min
 const SLOT_HEIGHT   = 16;   // px per 10-min slot
 const COLUMN_HEIGHT = SLOT_COUNT * SLOT_HEIGHT; // 960 px
 
-const DAYS      = ["Lunes", "Martes", "Mircoles", "Jueves", "Viernes"];
+const DAYS      = ["Lunes", "Martes", "Mi\u00e9rcoles", "Jueves", "Viernes"];
 const DAY_SHORT = ["L", "M", "X", "J", "V"];
 const ACCENT_CLASSES = [styles.a0, styles.a1, styles.a2, styles.a3, styles.a4, styles.a5];
 const ACCENT_COLORS  = ["#777","#555","#999","#444","#aaa","#666"];

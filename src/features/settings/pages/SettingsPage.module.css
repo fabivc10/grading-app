@@ -1,4 +1,4 @@
-/* ── Page ── */
+/* â”€â”€ Page â”€â”€ */
 .page {
     display: flex;
     flex-direction: column;
@@ -67,7 +67,7 @@
     cursor: not-allowed;
 }
 
-/* ── Sections list ── */
+/* â”€â”€ Sections list â”€â”€ */
 .sections {
     flex: 1;
     overflow-y: auto;
@@ -80,7 +80,7 @@
     overflow-y: auto;
 }
 
-/* ── Section ── */
+/* â”€â”€ Section â”€â”€ */
 .section {
     border-bottom: 1px solid var(--bd);
 }
@@ -125,14 +125,14 @@
 }
 .chevronOpen { transform: rotate(180deg); }
 
-/* ── Section body ── */
+/* â”€â”€ Section body â”€â”€ */
 .sectionBody {
     border-top: 1px solid var(--bd);
     background: var(--surface);
     border-left: 2px solid var(--bd);
 }
 
-/* ── Setting row ── */
+/* â”€â”€ Setting row â”€â”€ */
 .settingRow {
     display: flex;
     align-items: center;
@@ -166,14 +166,14 @@
     align-items: center;
 }
 
-/* ── Number input ── */
+/* â”€â”€ Number input â”€â”€ */
 .numInputWrap {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
 .numInput {
-    width: 5.5ch;
+    width: 7ch;
     padding: 0.35rem 6px 0.35rem calc(0.25rem + 6px);
     border: 1px solid var(--input-bd);
     border-radius: var(--radius-sm);
@@ -210,7 +210,7 @@
     line-height: 1;
 }
 
-/* ── Sum row ── */
+/* â”€â”€ Sum row â”€â”€ */
 .sumRow {
     padding: 0.4rem 1rem;
     font-size: 0.78rem;
@@ -219,13 +219,13 @@
 .sumOk  { color: var(--tx-3); }
 .sumWarn { color: var(--danger); }
 
-/* ── Saved badge ── */
+/* â”€â”€ Saved badge â”€â”€ */
 .savedBadge {
     font-size: 0.75rem;
     color: var(--tx-3);
 }
 
-/* ── Saved row ── */
+/* â”€â”€ Saved row â”€â”€ */
 .savedRow {
     display: flex;
     justify-content: flex-end;
@@ -233,7 +233,7 @@
     min-height: 1.5rem;
 }
 
-/* ── Toggle ── */
+/* â”€â”€ Toggle â”€â”€ */
 .toggle {
     position: relative;
     display: inline-flex;
@@ -399,7 +399,7 @@
     color: var(--tx-3);
 }
 
-/* ── Umbral bars ── */
+/* â”€â”€ Umbral bars â”€â”€ */
 .umbralSection {
     padding: 0.55rem 1rem 0.45rem;
     border-bottom: 1px solid var(--bd);
@@ -587,7 +587,7 @@
     margin-top: 0.2rem;
 }
 
-/* ── Alert control ── */
+/* â”€â”€ Alert control â”€â”€ */
 .alertControl {
     display: flex;
     align-items: center;
@@ -653,7 +653,7 @@
 }
 .resetBtn:hover { color: var(--tx-1); border-color: var(--tx-3); }
 
-/* ── Priority select ── */
+/* â”€â”€ Priority select â”€â”€ */
 .prioritySelect {
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--input-bd);
@@ -670,7 +670,7 @@
 .prioritySelect:focus { border-color: var(--accent); }
 .prioritySelect:disabled { opacity: 0.38; cursor: not-allowed; }
 
-/* ── Nivel chips ── */
+/* â”€â”€ Nivel chips â”€â”€ */
 .nivelChips {
     display: flex;
     flex-wrap: wrap;
@@ -696,7 +696,7 @@
     background: var(--accent) !important;
 }
 
-/* ── Nivel compact form ── */
+/* â”€â”€ Nivel compact form â”€â”€ */
 .nivelForm {
     padding: 0.35rem 1rem;
     border-bottom: 1px solid var(--bd);
@@ -754,7 +754,7 @@
 .nivelSaveBtn:hover { background: var(--accent-hover); }
 .nivelSaveBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Summary table ── */
+/* â”€â”€ Summary table â”€â”€ */
 .nivelSummary {
     display: flex;
     flex-direction: column;
@@ -790,7 +790,7 @@
 .nivelSummaryRowActive { background: var(--accent-subtle) !important; color: var(--accent-subtle-fg); }
 .nivelSummaryGrupo { font-weight: 600; color: var(--tx-1); text-align: left; }
 
-/* ── Semestres ── */
+/* â”€â”€ Semestres â”€â”€ */
 .semCompact {
     display: flex;
     flex-direction: column;
@@ -861,3 +861,4 @@
 .dayInput::-webkit-outer-spin-button { -webkit-appearance: auto; opacity: 0; width: 0; }
 .dayInput:hover::-webkit-inner-spin-button,
 .dayInput:focus::-webkit-inner-spin-button { opacity: 1; }
+

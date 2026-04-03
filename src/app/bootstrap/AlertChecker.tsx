@@ -3,8 +3,8 @@ import { useEvaluacionesStore } from "../../features/evaluations/store";
 import { useAsignaturasStore } from "../../features/subjects/store";
 import { useAsistenciaStore } from "../../features/attendance/store";
 import { getAttendanceStats } from "../../features/attendance/utils/attendance.utils";
-import { DEFAULT_NIVEL_CONFIG } from "../../features/settings/constants";
 import { useConfiguracionStore } from "../../features/settings/store";
+import { getNivelConfigForAsignatura } from "../../features/settings/utils/nivel-config.utils";
 import { useNotificationsStore } from "../../features/notifications/store";
 import type { EvalEntry, StudentEval, NivelConfig } from "../../features/evaluations/types";
 import type { Umbral } from "../../features/settings/types";
@@ -98,7 +98,7 @@ function getAssignmentYear(assignment: unknown): number | string {
     if (!assignment || typeof assignment !== "object") return "";
 
     const assignmentRecord = assignment as Record<string, unknown>;
-    const yearValue = assignmentRecord["year"] ?? assignmentRecord["year"] ?? assignmentRecord["aÃƒÆ’Ã‚Â±o"];
+    const yearValue = assignmentRecord["year"];
     return typeof yearValue === "number" || typeof yearValue === "string" ? yearValue : "";
 }
 
@@ -130,8 +130,7 @@ export function AlertChecker() {
             if (!record.estudianteId) continue;
 
             const assignment = assignments.find((item) => item.id === record.asignaturaId);
-            const configKey = assignment ? `${getAssignmentYear(assignment)}-${assignment.grupo}` : "";
-            const config = levelConfigs[configKey] ?? DEFAULT_NIVEL_CONFIG;
+            const config = getNivelConfigForAsignatura(levelConfigs, assignment);
             const assignmentText = subjectLabel(assignment);
 
             for (const period of (["s1", "s2", "general"] as const)) {
@@ -273,4 +272,6 @@ export function AlertChecker() {
 
     return null;
 }
+
+
 

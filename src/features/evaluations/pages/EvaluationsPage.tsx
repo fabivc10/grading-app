@@ -4,6 +4,7 @@ import { useEvaluacionesStore } from "../store";
 import { useAsignaturasStore } from "../../subjects/store";
 import { DEFAULT_EVAL_SCALES, DEFAULT_NIVEL_CONFIG } from "../../settings/constants";
 import { useConfiguracionStore } from "../../settings/store";
+import { getNivelConfigForAsignatura } from "../../settings/utils/nivel-config.utils";
 import type { EvalScale } from "../../settings/types";
 import { getAttendanceStats } from "../../attendance/utils/attendance.utils";
 import type { TemaItem, EvalEntry, EvalCategory, EvalTipo, StudentEval, NivelConfig } from "../types";
@@ -14,7 +15,7 @@ import { EmptyState } from "../../../shared/ui/EmptyState";
 import { FormField } from "../../../shared/ui/FormField";
 import styles from "./EvaluationsPage.module.css";
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Constants
 const ALL_CATS: { key: EvalCategory; label: string }[] = [
     { key: "cotidiano", label: "Trabajo Cotidiano" },
     { key: "tareas",    label: "Tareas" },
@@ -25,7 +26,7 @@ const ALL_CATS: { key: EvalCategory; label: string }[] = [
 let _seq = 100;
 const uid = () => (++_seq).toString();
 
-// â”€â”€â”€ Score helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Score helpers
 function getEntryItemMax(entry: EvalEntry): number {
     return entry.items.reduce((sum, item) => sum + item.valor, 0);
 }
@@ -39,6 +40,15 @@ function entryEarned(entry: EvalEntry): number {
     if (itemMax <= 0) return 0;
     const itemEarned = getEntryItemEarned(entry);
     return Math.min(entry.pct, (itemEarned / itemMax) * entry.pct);
+}
+
+function getDisplayEntryMax(entry: EvalEntry, category: EvalCategory): number {
+    return category === "prueba" ? entry.pct : getEntryItemMax(entry);
+}
+
+function getDisplayEntryEarned(entry: EvalEntry, category: EvalCategory): number {
+    if (category === "prueba") return Math.round(entryEarned(entry));
+    return getEntryItemEarned(entry);
 }
 // Category % = earned / sum_of_entry_pcts (not relative to category weight)
 function catPct(entries: EvalEntry[]): number {
@@ -87,7 +97,7 @@ function calcScorePeriod(record: StudentEval, _conductaPct: number, cfg: NivelCo
     return Math.min(100, Math.max(0, Math.round(applyAusenciasRebaja(total, record))));
 }
 
-// â”€â”€ Academic status (for badge + group breakdown + filter) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Academic status (for badge + group breakdown + filter)
 type AcademicStatus = "eximido" | "aprobado" | "convocatoria" | "reprobado";
 function getAcademicStatus(score: number): AcademicStatus {
     if (score >= 90) return "eximido";
@@ -125,8 +135,26 @@ function getScaleByType(evalScales: EvalScale[], evalType?: EvalTipo): EvalScale
         ?? scales[0];
 }
 
+function getCategoryWeight(config: NivelConfig, category: EvalCategory): number {
+    if (category === "proyecto" && config.numProyectos === 0) return 0;
+    return config[category];
+}
 
-// â”€â”€â”€ Conducta Chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function getDefaultContentName(index: number): string {
+    return `Contenido ${index + 1}`;
+}
+
+function getDefaultIndicatorName(index: number): string {
+    return `Indicador ${index + 1}`;
+}
+
+function getRemainingCategoryPoints(record: StudentEval, category: EvalCategory, config: NivelConfig): number {
+    const assigned = record[category].reduce((sum, entry) => sum + entry.pct, 0);
+    return Math.max(0, getCategoryWeight(config, category) - assigned);
+}
+
+
+// Conducta chip
 function ConductaChip({ pct, onChange }: { pct: number; onChange: (v: number) => void }) {
     const [editing, setEditing] = useState(false);
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,7 +179,7 @@ function ConductaChip({ pct, onChange }: { pct: number; onChange: (v: number) =>
     );
 }
 
-// â”€â”€â”€ PuntoModal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PuntoModal
 function IndicatorModal({ initial, contentName, evalType, onSave, onClose }: {
     initial: Partial<TemaItem>; contentName?: string;
     evalType?: EvalTipo;
@@ -175,7 +203,7 @@ function IndicatorModal({ initial, contentName, evalType, onSave, onClose }: {
     );
 
     return (
-        <Modal open onClose={onClose} title={isEdit ? "Editar indicador" : "Nuevo indicador de evaluación"} footer={footer}>
+        <Modal open onClose={onClose} title={isEdit ? "Editar indicador" : "Nuevo indicador de evaluaci\u00f3n"} footer={footer}>
             <form
                 id="indicator-form"
                 style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
@@ -210,14 +238,14 @@ function IndicatorModal({ initial, contentName, evalType, onSave, onClose }: {
                         <input
                             className={styles.formInput}
                             type="text"
-                            placeholder="Ej: Definición"
+                            placeholder="Ej: Definici\u00f3n"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             autoFocus={Boolean(contentName)}
                             required
                         />
                     </FormField>
-                    <FormField label="Valor máximo (pts)" required>
+                    <FormField label="Valor m\u00e1ximo (pts)" required>
                         <input
                             className={styles.formInput}
                             type="number"
@@ -230,7 +258,7 @@ function IndicatorModal({ initial, contentName, evalType, onSave, onClose }: {
                         />
                     </FormField>
                 </div>
-                <FormField label="Descripción">
+                <FormField label="Descripci\u00f3n">
                     <input className={styles.formInput} type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
                 </FormField>
             </form>
@@ -238,10 +266,89 @@ function IndicatorModal({ initial, contentName, evalType, onSave, onClose }: {
     );
 }
 
-function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
+function ChecklistDropdown({
+    placeholder,
+    summary,
+    options,
+}: {
+    placeholder: string;
+    summary?: string;
+    options: { id: string; label: string; checked: boolean; disabled?: boolean; onToggle: () => void }[];
+}) {
+    const [open, setOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const handlePointerDown = (event: MouseEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handlePointerDown);
+        return () => document.removeEventListener("mousedown", handlePointerDown);
+    }, []);
+
+    return (
+        <div
+            ref={rootRef}
+            className={styles.dropdownField}
+            onBlur={(event) => {
+                const nextFocused = event.relatedTarget as Node | null;
+                if (!nextFocused || !rootRef.current?.contains(nextFocused)) {
+                    setOpen(false);
+                }
+            }}>
+            <button
+                type="button"
+                className={`${styles.formControl} ${styles.dropdownTrigger} ${open ? styles.dropdownTriggerOpen : ""}`}
+                onClick={() => setOpen((current) => !current)}>
+                <span className={summary && summary.trim() !== "" ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                    {summary && summary.trim() !== "" ? summary : placeholder}
+                </span>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
+            </button>
+            {open && (
+                <div
+                    className={styles.dropdownMenu}
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                    }}>
+                    <div className={styles.dropdownOptions}>
+                        {options.map((option) => (
+                            <label
+                                key={option.id}
+                                className={`${styles.multiSelectOption} ${option.disabled ? styles.multiSelectOptionDisabled : ""}`}
+                                onClick={(event) => {
+                                    if (option.disabled) {
+                                        event.preventDefault();
+                                        return;
+                                    }
+                                    if (event.target instanceof HTMLInputElement) return;
+                                    event.preventDefault();
+                                    option.onToggle();
+                                }}>
+                                <input
+                                    type="checkbox"
+                                    checked={option.checked}
+                                    disabled={option.disabled}
+                                    tabIndex={open ? 0 : -1}
+                                    onChange={option.onToggle}
+                                />
+                                <span>{option.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave, onClose }: {
     records: StudentEval[];
     asignaturas: { id: string; nombre: string; grupo: number; seccion: number; year: number }[];
-    onSave: (recordIds: string[], category: EvalCategory, name: string, items: TemaItem[], semester: 's1' | 's2', evalType: EvalTipo) => void;
+    nivelConfigs: Record<string, NivelConfig>;
+    onSave: (recordIds: string[], category: EvalCategory, name: string, pct: number, items: TemaItem[], semester: 's1' | 's2', evalType: EvalTipo) => void;
     onClose: () => void;
 }) {
     type LocalIndicator = { id: string; nombre: string; valor: number };
@@ -260,6 +367,7 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
     const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>([]);
     const [studentAssignmentId, setStudentAssignmentId] = useState("");
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [assignedPoints, setAssignedPoints] = useState(0);
 
     useEffect(() => {
         if (!availableEvalScales.some((scale) => scale.id === evalType)) {
@@ -280,6 +388,11 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
     const availableAssignments = useMemo(
         () => assignments.filter((assignment) => records.some((record) => record.asignaturaId === assignment.id)),
         [assignments, records]
+    );
+
+    const assignmentMap = useMemo(
+        () => new Map(availableAssignments.map((assignment) => [assignment.id, assignment])),
+        [availableAssignments]
     );
 
     const targetIds = useMemo((): string[] => {
@@ -304,12 +417,88 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
         [studentAssignmentId, students, records]
     );
 
+    const targetRecords = useMemo(() => {
+        if (targetIds.length === 0) return [] as StudentEval[];
+        const idSet = new Set(targetIds);
+        return records.filter((record) => idSet.has(record.id));
+    }, [records, targetIds]);
+
+    const maxAssignablePoints = useMemo(() => {
+        if (targetRecords.length === 0) return 0;
+        return targetRecords.reduce((minRemaining, record) => {
+            const assignment = assignmentMap.get(record.asignaturaId);
+            const config = getNivelConfigForAsignatura(nivelConfigs, assignment);
+            const remaining = getRemainingCategoryPoints(record, category, config);
+            return Math.min(minRemaining, remaining);
+        }, Number.POSITIVE_INFINITY);
+    }, [assignmentMap, category, nivelConfigs, targetRecords]);
+
+    const remainingCategorySlots = useMemo(() => {
+        if (targetRecords.length === 0) return undefined;
+
+        const getCategoryLimit = (config: NivelConfig) => {
+            switch (category) {
+                case "tareas":
+                    return config.numTareas;
+                case "prueba":
+                    return config.numPruebas;
+                case "proyecto":
+                    return config.numProyectos;
+                default:
+                    return undefined;
+            }
+        };
+
+        return targetRecords.reduce<number | undefined>((minRemaining, record) => {
+            const assignment = assignmentMap.get(record.asignaturaId);
+            const config = getNivelConfigForAsignatura(nivelConfigs, assignment);
+            const limit = getCategoryLimit(config);
+            if (limit === undefined) return minRemaining;
+            const used = record[category].length;
+            const remaining = Math.max(0, limit - used);
+            if (minRemaining === undefined) return remaining;
+            return Math.min(minRemaining, remaining);
+        }, undefined);
+    }, [assignmentMap, category, nivelConfigs, targetRecords]);
+
+    useEffect(() => {
+        setAssignedPoints((current) => {
+            if (!Number.isFinite(maxAssignablePoints) || maxAssignablePoints <= 0) return 0;
+            if (current <= 0 || current > maxAssignablePoints) return maxAssignablePoints;
+            return current;
+        });
+    }, [maxAssignablePoints, category]);
+
     const toggleSelection = (current: string[], value: string) =>
         current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
+    const selectedAssignmentGroup = useMemo(() => {
+        const firstSelectedId = selectedAssignmentIds[0];
+        if (!firstSelectedId) return undefined;
+        return availableAssignments.find((assignment) => assignment.id === firstSelectedId)?.grupo;
+    }, [availableAssignments, selectedAssignmentIds]);
+
+    const selectedAssignmentSummary = useMemo(() => {
+        if (selectedAssignmentIds.length === 0) return "";
+        return selectedAssignmentIds
+            .map((id) => availableAssignments.find((assignment) => assignment.id === id))
+            .filter(Boolean)
+            .map((assignment) => `${assignment!.nombre} ${assignment!.grupo}-${assignment!.seccion} (${assignment!.year})`)
+            .join(", ");
+    }, [availableAssignments, selectedAssignmentIds]);
+
+    const selectedStudentSummary = useMemo(() => {
+        if (selectedStudentIds.length === 0) return "";
+        return selectedStudentIds
+            .map((id) => availableStudents.find((student) => student.id === id))
+            .filter(Boolean)
+            .map((student) => student!.nombre)
+            .join(", ");
+    }, [availableStudents, selectedStudentIds]);
+
     const addContent = () => {
         const newId = uid();
-        setContents((current) => [...current, { id: newId, nombre: "", puntos: [] }]);
+        setContents((current) => [...current, { id: newId, nombre: getDefaultContentName(current.length), puntos: [] }]);
         setExpandedId(newId);
     };
 
@@ -321,10 +510,20 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
     const setContentName = (contentId: string, value: string) =>
         setContents((current) => current.map((item) => item.id === contentId ? { ...item, nombre: value } : item));
 
+    const clearDefaultContentName = (contentId: string) =>
+        setContents((current) => current.map((item, index) => (
+            item.id === contentId && item.nombre === getDefaultContentName(index)
+                ? { ...item, nombre: "" }
+                : item
+        )));
+
     const addIndicator = (contentId: string) => {
         const scoreRange = getScaleByType(availableEvalScales, evalType);
+        const remainingPoints = Math.max(0, maxAssignablePoints - totalPts);
+        const nextValue = Math.min(scoreRange.max, remainingPoints);
+        if (nextValue <= 0) return;
         setContents((current) => current.map((item) => item.id === contentId
-            ? { ...item, puntos: [...item.puntos, { id: uid(), nombre: "", valor: scoreRange.max }] }
+            ? { ...item, puntos: [...item.puntos, { id: uid(), nombre: getDefaultIndicatorName(item.puntos.length), valor: nextValue }] }
             : item));
     };
 
@@ -333,12 +532,46 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
             ? { ...item, puntos: item.puntos.filter((indicator) => indicator.id !== indicatorId) }
             : item));
 
-    const updateIndicator = (contentId: string, indicatorId: string, patch: Partial<LocalIndicator>) =>
-        setContents((current) => current.map((item) => item.id === contentId
-            ? { ...item, puntos: item.puntos.map((indicator) => indicator.id === indicatorId ? { ...indicator, ...patch } : indicator) }
-            : item));
-
     const totalPts = contents.flatMap((content) => content.puntos).reduce((sum, indicator) => sum + indicator.valor, 0);
+    const remainingIndicatorPoints = Math.max(0, maxAssignablePoints - totalPts);
+
+    const updateIndicator = (contentId: string, indicatorId: string, patch: Partial<LocalIndicator>) =>
+        setContents((current) => current.map((item) => {
+            if (item.id !== contentId) return item;
+            return {
+                ...item,
+                puntos: item.puntos.map((indicator) => {
+                    if (indicator.id !== indicatorId) return indicator;
+                    if (patch.valor === undefined) return { ...indicator, ...patch };
+
+                    const scoreRange = getScaleByType(availableEvalScales, evalType);
+                    const otherPoints = current
+                        .flatMap((content) => content.puntos)
+                        .filter((entry) => entry.id !== indicatorId)
+                        .reduce((sum, entry) => sum + entry.valor, 0);
+                    const maxForIndicator = Math.max(0, maxAssignablePoints - otherPoints);
+                    const nextValue = Math.min(
+                        scoreRange.max,
+                        maxForIndicator,
+                        Math.max(scoreRange.min, Number(patch.valor) || 0)
+                    );
+                    return { ...indicator, ...patch, valor: nextValue };
+                }),
+            };
+        }));
+
+    const clearDefaultIndicatorName = (contentId: string, indicatorId: string) =>
+        setContents((current) => current.map((item) => {
+            if (item.id !== contentId) return item;
+            return {
+                ...item,
+                puntos: item.puntos.map((indicator, index) => (
+                    indicator.id === indicatorId && indicator.nombre === getDefaultIndicatorName(index)
+                        ? { ...indicator, nombre: "" }
+                        : indicator
+                )),
+            };
+        }));
 
     const hasIncompleteContent = contents.length > 0 && !contents.every((content) =>
         content.nombre.trim() !== "" &&
@@ -346,37 +579,63 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
         content.puntos.every((indicator) => indicator.nombre.trim() !== "" && indicator.valor > 0)
     );
 
+    const isPruebaCategory = category === "prueba";
+    const effectiveAssignedPoints = isPruebaCategory ? assignedPoints : totalPts;
+    const mustUseFullRemainingPoints = remainingCategorySlots === 1;
+    const hasAssignmentContext = target === "asignatura" ? selectedAssignmentIds.length > 0 : studentAssignmentId !== "";
+    const activitiesIndicator = remainingCategorySlots === undefined
+        ? "Sin l\u00edmite configurado."
+        : remainingCategorySlots > 0
+            ? `${remainingCategorySlots} disponible${remainingCategorySlots !== 1 ? "s" : ""}.`
+            : "Sin cupos.";
     const isValid =
         evalName.trim() !== "" &&
-        totalPts > 0 &&
         targetIds.length > 0 &&
-        contents.length > 0 &&
-        !hasIncompleteContent;
+        effectiveAssignedPoints > 0 &&
+        effectiveAssignedPoints <= maxAssignablePoints &&
+        (!mustUseFullRemainingPoints || effectiveAssignedPoints === maxAssignablePoints) &&
+        (isPruebaCategory || contents.length > 0) &&
+        (isPruebaCategory || !hasIncompleteContent);
 
     const handleSave = (e: FormEvent) => {
         e.preventDefault();
         if (!isValid) return;
-        const items: TemaItem[] = contents.flatMap((content) =>
-            content.puntos.map((indicator) => ({
+
+        const items: TemaItem[] = isPruebaCategory
+            ? [{
                 id: uid(),
-                tema: content.nombre.trim(),
-                nombre: indicator.nombre.trim(),
+                tema: "Resultado",
+                nombre: evalName.trim(),
                 descripcion: "",
-                valor: indicator.valor,
-                nota: indicator.valor,
+                valor: assignedPoints,
+                nota: assignedPoints,
                 notaDescripcion: "",
-            }))
-        );
-        onSave(targetIds, category, evalName.trim(), items, semester, evalType);
+            }]
+            : contents.flatMap((content) =>
+                content.puntos.map((indicator) => ({
+                    id: uid(),
+                    tema: content.nombre.trim(),
+                    nombre: indicator.nombre.trim(),
+                    descripcion: "",
+                    valor: indicator.valor,
+                    nota: indicator.valor,
+                    notaDescripcion: "",
+                }))
+            );
+
+        onSave(targetIds, category, evalName.trim(), effectiveAssignedPoints, items, semester, evalType);
     };
 
-    const validationHint = !evalName.trim() ? "Escribe el nombre de la evaluación."
-        : contents.length === 0 ? "Agrega al menos un contenido."
-        : hasIncompleteContent ? "Completa los contenidos e indicadores."
-        : targetIds.length === 0 ? "Selecciona a quién aplicar la evaluación."
+    const validationHint = !evalName.trim() ? "Escribe el nombre de la evaluacion."
+        : targetIds.length === 0 ? "Selecciona a quien aplicar la evaluacion."
+        : remainingCategorySlots !== undefined && remainingCategorySlots <= 0 ? "Ya no quedan actividades disponibles en esta categoria. Ve a Configuracion para personalizar el limite."
+        : maxAssignablePoints <= 0 ? "Ya no quedan puntos disponibles en esta categoria."
+        : effectiveAssignedPoints <= 0 ? (isPruebaCategory ? "Indica cuanto vale la prueba." : "La suma de indicadores debe ser mayor que cero.")
+        : effectiveAssignedPoints > maxAssignablePoints ? `Solo quedan ${maxAssignablePoints} pts disponibles.`
+        : mustUseFullRemainingPoints && effectiveAssignedPoints !== maxAssignablePoints ? `Esta categoria solo permite una evaluacion restante, debe valer ${maxAssignablePoints} pts.`
+        : !isPruebaCategory && contents.length === 0 ? "Agrega al menos un contenido."
+        : !isPruebaCategory && hasIncompleteContent ? "Completa los contenidos e indicadores."
         : "";
-    const selectedScale = getScaleByType(availableEvalScales, evalType);
-
     const footer = (
         <>
             <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
@@ -385,42 +644,193 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
     );
 
     return (
-        <Modal open onClose={onClose} title="Añadir evaluación" footer={footer}>
+        <Modal open onClose={onClose} title={"A\u00f1adir evaluaci\u00f3n"} footer={footer} className={styles.addEvalModal}>
             <form id="addeval-form" onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
                 <div className={styles.row2}>
-                    <FormField label="Categoría">
-                        <select className={styles.formInput} value={category} onChange={(e) => setCategory(e.target.value as EvalCategory)}>
-                            {ALL_CATS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-                        </select>
-                    </FormField>
                     <FormField label="Nombre" required>
-                        <input className={styles.formInput} type="text" placeholder="Ej: Prueba 1" value={evalName} onChange={(e) => setEvalName(e.target.value)} required />
+                        <input className={`${styles.formControl} ${styles.formInput}`} type="text" placeholder="Ej: Prueba 1" value={evalName} onChange={(e) => setEvalName(e.target.value)} required />
+                    </FormField>
+                    <FormField label={"Categor\u00eda"}>
+                        <div className={styles.categoryField}>
+                            <select className={`${styles.formControl} ${styles.formInput}`} value={category} onChange={(e) => setCategory(e.target.value as EvalCategory)}>
+                                {ALL_CATS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+                            </select>
+                            <div className={`${styles.categoryIndicator} ${remainingCategorySlots !== undefined && remainingCategorySlots <= 0 ? styles.categoryIndicatorAlert : ""}`}>
+                                {activitiesIndicator}
+                            </div>
+                        </div>
                     </FormField>
                 </div>
 
-                <div className={styles.row2}>
-                    <FormField
-                        label={(
-                            <span className={styles.inlineFieldLabel}>
-                                <span>Tipo de evaluación</span>
-                                <span className={styles.tipoHintInline}>{selectedScale.min}-{selectedScale.max} pts</span>
-                            </span>
-                        )}>
-                        <select className={styles.formInput} value={evalType} onChange={(e) => setEvalType(e.target.value)}>
-                            {availableEvalScales.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
-                        </select>
-                    </FormField>
-                    <FormField label="Semestre">
-                        <select className={styles.formInput} value={semester} onChange={(e) => setSemester(e.target.value as 's1' | 's2')}>
-                            <option value="s1">Semestre I</option>
-                            <option value="s2">Semestre II</option>
-                        </select>
-                    </FormField>
-                </div>
+                {isPruebaCategory ? (
+                    <div className={styles.row3WithFull}>
+                        {target === "asignatura" && (
+                            <div className={styles.fullRow}>
+                                <FormField label="Asignatura" required>
+                                    <ChecklistDropdown
+                                        placeholder="Selecciona asignaturas"
+                                        summary={selectedAssignmentSummary}
+                                        options={availableAssignments.map((assignment) => ({
+                                            id: assignment.id,
+                                            label: `${assignment.nombre} ${assignment.grupo}-${assignment.seccion} (${assignment.year})`,
+                                            checked: selectedAssignmentIds.includes(assignment.id),
+                                            disabled: !selectedAssignmentIds.includes(assignment.id) && selectedAssignmentGroup !== undefined && assignment.grupo !== selectedAssignmentGroup,
+                                            onToggle: () => setSelectedAssignmentIds((current) => {
+                                                const currentGroup = current.length > 0
+                                                    ? availableAssignments.find((item) => item.id === current[0])?.grupo
+                                                    : undefined;
+                                                if (!current.includes(assignment.id) && currentGroup !== undefined && assignment.grupo !== currentGroup) {
+                                                    return current;
+                                                }
+                                                return toggleSelection(current, assignment.id);
+                                            }),
+                                        }))}
+                                    />
+                                </FormField>
+                            </div>
+                        )}
+                        <FormField label="Aplicar a">
+                            <select
+                                className={`${styles.formControl} ${styles.formInput}`}
+                                value={target}
+                                onChange={(e) => {
+                                    const nextTarget = e.target.value as "estudiante" | "asignatura";
+                                    setTarget(nextTarget);
+                                    setSelectedAssignmentIds([]);
+                                    setSelectedStudentIds([]);
+                                    setStudentAssignmentId("");
+                                }}>
+                                {availableAssignments.length > 0 && <option value="asignatura">Asignatura</option>}
+                                {students.length > 0 && <option value="estudiante">Estudiante</option>}
+                            </select>
+                        </FormField>
+                        <FormField
+                            label={"Valor de la Prueba"}
+                            required>
+                            <input
+                                className={`${styles.formControl} ${styles.formInput}`}
+                                type="number"
+                                min={0}
+                                max={Math.max(0, maxAssignablePoints)}
+                                step={1}
+                                value={assignedPoints || ""}
+                                disabled={!hasAssignmentContext}
+                                onChange={(e) => setAssignedPoints(e.target.value === "" ? 0 : Math.max(0, Math.min(maxAssignablePoints, Number(e.target.value))))}
+                                required
+                            />
+                        </FormField>
+                        <FormField label="Semestre">
+                            <select className={`${styles.formControl} ${styles.formInput}`} value={semester} onChange={(e) => setSemester(e.target.value as 's1' | 's2')}>
+                                <option value="s1">Semestre I</option>
+                                <option value="s2">Semestre II</option>
+                            </select>
+                        </FormField>
+                    </div>
+                ) : (
+                    <div className={styles.row3WithFull}>
+                        {target === "asignatura" && (
+                            <div className={styles.fullRow}>
+                                <FormField label="Asignatura" required>
+                                    <ChecklistDropdown
+                                        placeholder="Selecciona asignaturas"
+                                        summary={selectedAssignmentSummary}
+                                        options={availableAssignments.map((assignment) => ({
+                                            id: assignment.id,
+                                            label: `${assignment.nombre} ${assignment.grupo}-${assignment.seccion} (${assignment.year})`,
+                                            checked: selectedAssignmentIds.includes(assignment.id),
+                                            disabled: !selectedAssignmentIds.includes(assignment.id) && selectedAssignmentGroup !== undefined && assignment.grupo !== selectedAssignmentGroup,
+                                            onToggle: () => setSelectedAssignmentIds((current) => {
+                                                const currentGroup = current.length > 0
+                                                    ? availableAssignments.find((item) => item.id === current[0])?.grupo
+                                                    : undefined;
+                                                if (!current.includes(assignment.id) && currentGroup !== undefined && assignment.grupo !== currentGroup) {
+                                                    return current;
+                                                }
+                                                return toggleSelection(current, assignment.id);
+                                            }),
+                                        }))}
+                                    />
+                                </FormField>
+                            </div>
+                        )}
+                        <FormField label="Aplicar a">
+                            <select
+                                className={`${styles.formControl} ${styles.formInput}`}
+                                value={target}
+                                onChange={(e) => {
+                                    const nextTarget = e.target.value as "estudiante" | "asignatura";
+                                    setTarget(nextTarget);
+                                    setSelectedAssignmentIds([]);
+                                    setSelectedStudentIds([]);
+                                    setStudentAssignmentId("");
+                                }}>
+                                {availableAssignments.length > 0 && <option value="asignatura">Asignatura</option>}
+                                {students.length > 0 && <option value="estudiante">Estudiante</option>}
+                            </select>
+                        </FormField>
+                        <FormField label={"Tipo de evaluaci\u00f3n"}>
+                            <select className={`${styles.formControl} ${styles.formInput}`} value={evalType} onChange={(e) => setEvalType(e.target.value)}>
+                                {availableEvalScales.map((scale) => (
+                                    <option key={scale.id} value={scale.id}>
+                                        {scale.label} ({scale.min}-{scale.max} pts)
+                                    </option>
+                                ))}
+                            </select>
+                        </FormField>
+                        <FormField label="Semestre">
+                            <select className={`${styles.formControl} ${styles.formInput}`} value={semester} onChange={(e) => setSemester(e.target.value as 's1' | 's2')}>
+                                <option value="s1">Semestre I</option>
+                                <option value="s2">Semestre II</option>
+                            </select>
+                        </FormField>
+                    </div>
+                )}
+                {target === "estudiante" && (
+                    <div className={styles.row2}>
+                        <FormField label="Asignatura" required>
+                            <select
+                                className={`${styles.formControl} ${styles.formInput}`}
+                                value={studentAssignmentId}
+                                onChange={(e) => {
+                                    setStudentAssignmentId(e.target.value);
+                                    setSelectedStudentIds([]);
+                                }}
+                                required>
+                                <option value="">Selecciona...</option>
+                                {availableAssignments.map((assignment) => (
+                                    <option key={assignment.id} value={assignment.id}>
+                                        {assignment.nombre} {assignment.grupo}-{assignment.seccion} ({assignment.year})
+                                    </option>
+                                ))}
+                            </select>
+                        </FormField>
+                        <FormField label="Estudiante" required>
+                            {availableStudents.length === 0 ? (
+                                <div className={`${styles.formControl} ${styles.multiSelectList} ${styles.multiSelectListEmpty}`}>
+                                    <span className={styles.multiSelectEmptyText}>
+                                        {studentAssignmentId ? "No hay estudiantes disponibles." : "Selecciona una asignatura."}
+                                    </span>
+                                </div>
+                            ) : (
+                                <ChecklistDropdown
+                                    placeholder="Selecciona estudiantes"
+                                    summary={selectedStudentSummary}
+                                    options={availableStudents.map((student) => ({
+                                        id: student.id,
+                                        label: student.nombre,
+                                        checked: selectedStudentIds.includes(student.id),
+                                        onToggle: () => setSelectedStudentIds((current) => toggleSelection(current, student.id)),
+                                    }))}
+                                />
+                            )}
+                        </FormField>
+                    </div>
+                )}
 
+                {!isPruebaCategory && (
                     <FormField label="Contenido">
                     <div className={styles.temaBuilderIntro}>
-                        Cada contenido puede agrupar varios indicadores de evaluación.
+                        {"Cada contenido puede agrupar varios indicadores de evaluaci\u00f3n."}
                     </div>
                     <div className={styles.temaBuilderList}>
                         {contents.map((content, index) => {
@@ -437,15 +847,15 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
                                             <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                                             <div className={styles.temaBuilderHeadText}>
                                                 <div className={styles.temaBuilderLabelRow}>
-                                                    <span className={styles.temaBuilderBadge}>Contenido {index + 1}</span>
+                                                    <span className={styles.temaBuilderBadge}>Contenido</span>
                                                     <span className={styles.temaBuilderMeta}>
                                                         {indicatorCount} indicador{indicatorCount !== 1 ? "es" : ""}
-                                                        {contentPts > 0 ? ` · ${contentPts} pts` : ""}
+                                                        {contentPts > 0 ? ` \u00b7 ${contentPts} pts` : ""}
                                                     </span>
                                                 </div>
                                                 {!isOpen && (
                                                     <span className={styles.temaBuilderCollapsedName}>
-                                                        {content.nombre || <em style={{ color: "var(--tx-3)" }}>Sin nombre</em>}
+                                                        {content.nombre || <em style={{ color: "var(--tx-3)" }}>{getDefaultContentName(index)}</em>}
                                                     </span>
                                                 )}
                                             </div>
@@ -461,8 +871,12 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
                                                 <input
                                                     className={styles.temaBuilderInput}
                                                     placeholder="Nombre del contenido"
-                                                    value={content.nombre}
+                                                    value={content.nombre || getDefaultContentName(index)}
                                                     onChange={(e) => { e.stopPropagation(); setContentName(content.id, e.target.value); }}
+                                                    onFocus={(e) => {
+                                                        e.stopPropagation();
+                                                        clearDefaultContentName(content.id);
+                                                    }}
                                                     onClick={(e) => e.stopPropagation()}
                                                     autoFocus
                                                 />
@@ -488,6 +902,7 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
                                                         className={styles.puntoBuilderName}
                                                         placeholder="Indicador a evaluar"
                                                         value={indicator.nombre}
+                                                        onFocus={() => clearDefaultIndicatorName(content.id, indicator.id)}
                                                         onChange={(e) => updateIndicator(content.id, indicator.id, { nombre: e.target.value })}
                                                     />
                                                     <input
@@ -508,7 +923,11 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
                                                 </div>
                                             ))}
                                             <div className={styles.puntoBuilderFooter}>
-                                                <button type="button" className={`${styles.builderAddTemaBtn} ${styles.builderAddPuntoBtn}`} onClick={() => addIndicator(content.id)}>
+                                                <button
+                                                    type="button"
+                                                    className={`${styles.builderAddTemaBtn} ${styles.builderAddPuntoBtn}`}
+                                                    onClick={() => addIndicator(content.id)}
+                                                    disabled={remainingIndicatorPoints <= 0}>
                                                     <PlusIcon /> Agregar indicador
                                                 </button>
                                             </div>
@@ -517,86 +936,26 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
                                 </div>
                             );
                         })}
-                        <button type="button" className={styles.builderAddTemaBtn} onClick={addContent}>
+                        <button
+                            type="button"
+                            className={styles.builderAddTemaBtn}
+                            onClick={addContent}
+                            disabled={remainingIndicatorPoints <= 0}>
                             <PlusIcon /> Agregar contenido
                         </button>
                     </div>
                     {totalPts > 0 && (
-                        <div className={styles.builderTotal}>
-                            Total: <strong>{totalPts} pts</strong>
+                        <div className={`${styles.builderTotal} ${totalPts > maxAssignablePoints ? styles.sumWarn : ""}`}>
+                            {"Valor de la evaluaci\u00f3n: "}<strong>{totalPts} pts</strong>
+                            {" \u00b7 "}
+                            <span>{maxAssignablePoints} pts m\u00e1ximo</span>
                         </div>
                     )}
                 </FormField>
-
-                <FormField label="Aplicar a">
-                    <select
-                        className={styles.formInput}
-                        value={target}
-                        onChange={(e) => {
-                            const nextTarget = e.target.value as "estudiante" | "asignatura";
-                            setTarget(nextTarget);
-                            setSelectedAssignmentIds([]);
-                            setSelectedStudentIds([]);
-                            setStudentAssignmentId("");
-                        }}>
-                        {availableAssignments.length > 0 && <option value="asignatura">Asignatura</option>}
-                        {students.length > 0 && <option value="estudiante">Estudiante</option>}
-                    </select>
-                </FormField>
-                {target === "asignatura" && (
-                    <FormField label="Asignatura" required>
-                        <div className={styles.multiSelectList}>
-                            {availableAssignments.map((assignment) => (
-                                <label key={assignment.id} className={styles.multiSelectOption}>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedAssignmentIds.includes(assignment.id)}
-                                        onChange={() => setSelectedAssignmentIds((current) => toggleSelection(current, assignment.id))}
-                                    />
-                                    <span>{assignment.nombre} {assignment.grupo}-{assignment.seccion} ({assignment.year})</span>
-                                </label>
-                            ))}
-                        </div>
-                    </FormField>
-                )}
-                {target === "estudiante" && (
-                    <div className={styles.row2}>
-                        <FormField label="Asignatura" required>
-                            <select
-                                className={styles.formInput}
-                                value={studentAssignmentId}
-                                onChange={(e) => {
-                                    setStudentAssignmentId(e.target.value);
-                                    setSelectedStudentIds([]);
-                                }}
-                                required>
-                                <option value="">Selecciona...</option>
-                                {availableAssignments.map((assignment) => (
-                                    <option key={assignment.id} value={assignment.id}>
-                                        {assignment.nombre} {assignment.grupo}-{assignment.seccion} ({assignment.year})
-                                    </option>
-                                ))}
-                            </select>
-                        </FormField>
-                        <FormField label="Estudiante" required>
-                            <div className={styles.multiSelectList}>
-                                {availableStudents.map((student) => (
-                                    <label key={student.id} className={styles.multiSelectOption}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedStudentIds.includes(student.id)}
-                                            onChange={() => setSelectedStudentIds((current) => toggleSelection(current, student.id))}
-                                        />
-                                        <span>{student.nombre}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </FormField>
-                    </div>
                 )}
                 {targetIds.length > 0 && (
                     <div className={styles.targetInfo}>
-                        Se añadirá a <strong>{targetIds.length}</strong> registro{targetIds.length !== 1 ? "s" : ""}
+                        {"Se a\u00f1adir\u00e1 a "}<strong>{targetIds.length}</strong> registro{targetIds.length !== 1 ? "s" : ""}
                     </div>
                 )}
                 {validationHint && <div className={styles.validationHint}>{validationHint}</div>}
@@ -604,15 +963,16 @@ function AddEvalModal({ records, asignaturas: assignments, onSave, onClose }: {
         </Modal>
     );
 }
-function TemaGroupRow({ temaName, items, tipo: _tipo, onAddPunto, onEditPunto, onDeleteItem, onNotaBlur, onNotaDescBlur }: {
+function TemaGroupRow({ temaName, items, tipo: _tipo, allowStructureEdit = true, hideObservation = false, onEditPunto, onDeleteItem, onNotaChange, onNotaDescChange }: {
     temaName: string;
     items: TemaItem[];
     tipo: EvalTipo;
-    onAddPunto: () => void;
+    allowStructureEdit?: boolean;
+    hideObservation?: boolean;
     onEditPunto: (item: TemaItem) => void;
     onDeleteItem: (id: string) => void;
-    onNotaBlur: (id: string, raw: string) => void;
-    onNotaDescBlur: (id: string, val: string) => void;
+    onNotaChange: (id: string, raw: string) => void;
+    onNotaDescChange: (id: string, val: string) => void;
 }) {
     const [open, setOpen] = useState(true);
     const maxT  = items.reduce((s, i) => s + i.valor, 0);
@@ -627,13 +987,9 @@ function TemaGroupRow({ temaName, items, tipo: _tipo, onAddPunto, onEditPunto, o
                 <span className={styles.temaGroupName}>{temaName}</span>
                 <span className={styles.temaGroupScore}>
                     {tHas && <span className={styles.temaGroupPct}>{tPct}%</span>}
-                    {tHas && <span className={styles.temaGroupDivider}>·</span>}
+                    {tHas && <span className={styles.temaGroupDivider}>{"\u00b7"}</span>}
                     <span>{notaT}/{maxT} pts</span>
                 </span>
-                <button type="button" className={styles.temaAddBtn}
-                    onClick={(e) => { e.stopPropagation(); onAddPunto(); }}>
-                    <PlusIcon /> Agregar indicador
-                </button>
             </div>
             {open && (
                 <div className={styles.temaItems}>
@@ -644,32 +1000,34 @@ function TemaGroupRow({ temaName, items, tipo: _tipo, onAddPunto, onEditPunto, o
                                 {item.descripcion && <span className={styles.puntoDesc}>{item.descripcion}</span>}
                             </div>
                             <div className={styles.puntoGrade}>
-                                <input
-                                    key={`${item.id}-nd`}
-                                    type="text"
-                                    className={styles.notaDescInput}
-                                    defaultValue={item.notaDescripcion}
-                                    placeholder="Observación..."
-                                    onBlur={(e) => onNotaDescBlur(item.id, e.target.value)}
-                                />
+                                {!hideObservation && (
+                                    <input
+                                        type="text"
+                                        className={styles.notaDescInput}
+                                        value={item.notaDescripcion}
+                                        placeholder="Observaci\u00f3n..."
+                                        onChange={(e) => onNotaDescChange(item.id, e.target.value)}
+                                    />
+                                )}
                                 <div className={styles.notaCell}>
                                     <input
-                                        key={`${item.id}-${item.nota}`}
                                         type="number"
                                         className={styles.notaInput}
-                                        defaultValue={item.nota}
+                                        value={item.nota}
                                         min={0}
                                         max={item.valor}
                                         step={1}
-                                        onBlur={(e) => onNotaBlur(item.id, e.target.value)}
+                                        onChange={(e) => onNotaChange(item.id, e.target.value)}
                                     />
                                     <span className={styles.notaMax}>/{item.valor}</span>
                                 </div>
                             </div>
-                            <div className={styles.puntoActions}>
-                                <button type="button" className={styles.iconBtn} onClick={() => onEditPunto(item)}><EditIcon /></button>
-                                <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`} onClick={() => onDeleteItem(item.id)}><TrashIcon /></button>
-                            </div>
+                            {allowStructureEdit && (
+                                <div className={styles.puntoActions}>
+                                    <button type="button" className={styles.iconBtn} onClick={() => onEditPunto(item)}><EditIcon /></button>
+                                    <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`} onClick={() => onDeleteItem(item.id)}><TrashIcon /></button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -678,19 +1036,22 @@ function TemaGroupRow({ temaName, items, tipo: _tipo, onAddPunto, onEditPunto, o
     );
 }
 
-// â”€â”€â”€ EvalEntryRow â€” temas with multiple puntos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function EvalEntryRow({ entry, onUpdate, onDelete }: {
+// EvalEntryRow
+function EvalEntryRow({ entry, category, onUpdate, onDelete }: {
     entry: EvalEntry;
+    category: EvalCategory;
     onUpdate: (updated: EvalEntry) => void;
     onDelete: (id: string) => void;
 }) {
     const [open,       setOpen]       = useState(false);
     const [indicatorModal, setIndicatorModal] = useState<{ contentName?: string; item?: TemaItem; evalType?: EvalTipo } | null>(null);
+    const allowStructureEdit = category !== "prueba";
 
     const itemMax   = getEntryItemMax(entry);
-    const itemEarned = getEntryItemEarned(entry);
-    const pct       = toPct(itemEarned, itemMax);
-    const hasItems  = itemMax > 0;
+    const displayMax = getDisplayEntryMax(entry, category);
+    const displayEarned = getDisplayEntryEarned(entry, category);
+    const pct       = toPct(displayEarned, displayMax);
+    const hasItems  = displayMax > 0;
 
     // Group items by tema
     const temasMap = useMemo(() => {
@@ -710,14 +1071,13 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
     };
     const handleDeleteItem = (id: string) => onUpdate({ ...entry, items: entry.items.filter((i) => i.id !== id) });
 
-    // Inline nota change â€” save on blur
-    const handleNotaBlur = (itemId: string, raw: string) => {
+    const handleNotaChange = (itemId: string, raw: string) => {
         const item = entry.items.find((i) => i.id === itemId);
         if (!item) return;
         const nota = Math.min(item.valor, Math.max(0, Number(raw) || 0));
         if (nota !== item.nota) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, nota } : i) });
     };
-    const handleNotaDescBlur = (itemId: string, val: string) => {
+    const handleNotaDescChange = (itemId: string, val: string) => {
         const item = entry.items.find((i) => i.id === itemId);
         if (!item) return;
         if (val !== item.notaDescripcion) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, notaDescripcion: val } : i) });
@@ -728,7 +1088,7 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
             <div className={styles.entryHead} onClick={() => setOpen((v) => !v)}>
                 <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                 <span className={styles.entryName}>{entry.nombre}</span>
-                {hasItems && <span className={styles.entryAlloc}>{itemEarned}/{itemMax} pts</span>}
+                {hasItems && <span className={styles.entryAlloc}>{displayEarned}/{displayMax} pts</span>}
                 {hasItems && <span className={styles.entryPct}>{pct}%</span>}
                 <button type="button" className={`${styles.iconBtn} ${styles.deleteBtnIcon}`}
                     onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}>
@@ -738,31 +1098,67 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
 
             {open && (
                 <div className={styles.entryBody}>
-                    {temasMap.size === 0 && <p className={styles.emptyItems}>Sin contenidos, añade el primer indicador.</p>}
+                    {category === "prueba" ? (
+                        <div className={styles.temaItems}>
+                            {entry.items.map((item) => (
+                                <div key={item.id} className={styles.puntoRow}>
+                                    <div className={styles.puntoInfo}>
+                                        <span className={styles.puntoNombre}>{entry.nombre}</span>
+                                    </div>
+                                    <div className={styles.puntoGrade}>
+                                        <div className={styles.notaCell}>
+                                            <input
+                                                type="number"
+                                                className={styles.notaInput}
+                                                value={Math.round(entryEarned(entry))}
+                                                min={0}
+                                                max={entry.pct}
+                                                step={1}
+                                                onChange={(e) => {
+                                                    const nextEarned = Math.max(0, Math.min(entry.pct, Number(e.target.value) || 0));
+                                                    const nextNota = entry.pct > 0 && itemMax > 0
+                                                        ? Math.min(item.valor, Math.max(0, (nextEarned / entry.pct) * item.valor))
+                                                        : 0;
+                                                    if (nextNota !== item.nota) {
+                                                        onUpdate({
+                                                            ...entry,
+                                                            items: entry.items.map((current) =>
+                                                                current.id === item.id ? { ...current, nota: nextNota } : current
+                                                            ),
+                                                        });
+                                                    }
+                                                }}
+                                            />
+                                            <span className={styles.notaMax}>/{entry.pct}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <>
+                            {temasMap.size === 0 && <p className={styles.emptyItems}>{"Sin contenidos."}</p>}
 
-                    {[...temasMap.entries()].map(([temaName, items]) => (
-                        <TemaGroupRow
-                            key={temaName}
-                            temaName={temaName}
-                            items={items}
-                            tipo={entry.tipo}
-                            onAddPunto={() => setIndicatorModal({ contentName: temaName, evalType: entry.tipo })}
-                            onEditPunto={(item) => setIndicatorModal({ contentName: temaName, item, evalType: entry.tipo })}
-                            onDeleteItem={handleDeleteItem}
-                            onNotaBlur={handleNotaBlur}
-                            onNotaDescBlur={handleNotaDescBlur}
-                        />
-                    ))}
-
-                    <div className={styles.entryFooter}>
-                        <button type="button" className={styles.addItemBtn} onClick={() => setIndicatorModal({ evalType: entry.tipo })}>
-                            <PlusIcon /> Agregar contenido
-                        </button>
-                    </div>
+                            {[...temasMap.entries()].map(([temaName, items]) => (
+                                <TemaGroupRow
+                                    key={temaName}
+                                    temaName={temaName}
+                                    items={items}
+                                    tipo={entry.tipo}
+                                    allowStructureEdit={allowStructureEdit}
+                                    hideObservation={false}
+                                    onEditPunto={(item) => setIndicatorModal({ contentName: temaName, item, evalType: entry.tipo })}
+                                    onDeleteItem={handleDeleteItem}
+                                    onNotaChange={handleNotaChange}
+                                    onNotaDescChange={handleNotaDescChange}
+                                />
+                            ))}
+                        </>
+                    )}
                 </div>
             )}
 
-            {indicatorModal !== null && (
+            {allowStructureEdit && indicatorModal !== null && (
                 <IndicatorModal
                     initial={indicatorModal.item ?? {}}
                     contentName={indicatorModal.contentName}
@@ -775,7 +1171,7 @@ function EvalEntryRow({ entry, onUpdate, onDelete }: {
     );
 }
 
-// â”€â”€â”€ CategoryGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CategoryGroup
 function CategoryGroup({ label, catKey: _catKey, entries, weight, maxEntries, onChange }: {
     label: string; catKey: EvalCategory; entries: EvalEntry[]; weight: number;
     maxEntries?: number;
@@ -804,7 +1200,7 @@ function CategoryGroup({ label, catKey: _catKey, entries, weight, maxEntries, on
                 </span>
                 <div className={styles.catStats}>
                     {hasData && <span className={`${styles.catPct} ${pc}`}>{pct}%</span>}
-                    {hasData && <span className={styles.catDivider}>·</span>}
+                    {hasData && <span className={styles.catDivider}>{"\u00b7"}</span>}
                     <span className={styles.catPoints}>{assignedPoints} / {weight} pts</span>
                 </div>
             </div>
@@ -812,18 +1208,18 @@ function CategoryGroup({ label, catKey: _catKey, entries, weight, maxEntries, on
             {entries.length > 0 && (
                 <div className={styles.catEntries}>
                     {entries.map((entry) => (
-                        <EvalEntryRow key={entry.id} entry={entry} onUpdate={handleUpdate} onDelete={handleDelete} />
+                        <EvalEntryRow key={entry.id} entry={entry} category={_catKey} onUpdate={handleUpdate} onDelete={handleDelete} />
                     ))}
                 </div>
             )}
             {entries.length === 0 && (
-                <div className={styles.catEmpty}>Sin evaluaciones · {weight}% disponibles</div>
+                <div className={styles.catEmpty}>{"Sin evaluaciones \u00b7 "}{weight}% disponibles</div>
             )}
         </div>
     );
 }
 
-// â”€â”€â”€ StudentPanel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// StudentPanel
 function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, onConductaChange }: {
     record: StudentEval; conductaPct: number; nivelConfig: NivelConfig;
     onUpdate: (id: string, patch: Partial<StudentEval>) => void;
@@ -891,7 +1287,7 @@ function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, on
     );
 }
 
-// â”€â”€â”€ AsignaturaGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// AsignaturaGroup
 function AsignaturaGroup({ asigNombre, records, conductaMap, nivelConfig, onUpdate, onDelete, onConductaChange }: {
     asigNombre: string;
     records: StudentEval[];
@@ -940,7 +1336,7 @@ function AsignaturaGroup({ asigNombre, records, conductaMap, nivelConfig, onUpda
     );
 }
 
-// â”€â”€â”€ EvaluationsPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// EvaluationsPage
 export function EvaluationsPage() {
     const asignaturas   = useAsignaturasStore((s) => s.asignaturas);
     const records       = useEvaluacionesStore((s) => s.records);
@@ -964,8 +1360,8 @@ export function EvaluationsPage() {
     const [sortBy,      setSortBy]      = useState("nombre-asc");
 
     const SORT_OPTIONS = [
-        { value: "nombre-asc",  label: "Nombre A–Z" },
-        { value: "nombre-desc", label: "Nombre Z–A" },
+        { value: "nombre-asc",  label: "Nombre A-Z" },
+        { value: "nombre-desc", label: "Nombre Z-A" },
         { value: "score-desc",  label: "Mejor nota" },
         { value: "score-asc",   label: "Peor nota"  },
     ];
@@ -1011,8 +1407,7 @@ export function EvaluationsPage() {
     const asigNivelMap = useMemo(() => {
         const m = new Map<string, NivelConfig>();
         asignaturas.forEach((a) => {
-            const key = `${a.year}-${a.grupo}`;
-            m.set(a.id, nivelConfigs[key] ?? DEFAULT_NIVEL_CONFIG);
+            m.set(a.id, getNivelConfigForAsignatura(nivelConfigs, a));
         });
         return m;
     }, [asignaturas, nivelConfigs]);
@@ -1077,7 +1472,7 @@ export function EvaluationsPage() {
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <button type="button" className={styles.addEvalBtn} onClick={() => setShowAddEval(true)}>
-                        <PlusIcon /> Nueva evaluación
+                        <PlusIcon /> {"Nueva evaluaci\u00f3n"}
                     </button>
                 </div>
             </div>
@@ -1114,7 +1509,7 @@ export function EvaluationsPage() {
                                     <label>Asignatura</label>
                                     <select value={filterAsig} onChange={(e) => setFilterAsig(e.target.value)}>
                                         <option value="">Todas</option>
-                                        {filteredAsigs.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo} · {a.year}</option>)}
+                                        {filteredAsigs.map((a) => <option key={a.id} value={a.id}>{a.nombre}{" \u00b7 "}{a.grupo}{" \u00b7 "}{a.year}</option>)}
                                     </select>
                                 </div>
                                 <div className={styles.filterPopoverRow}>
@@ -1197,13 +1592,15 @@ export function EvaluationsPage() {
                 <AddEvalModal
                     records={records}
                     asignaturas={asignaturas}
-                    onSave={(ids, cat, nombre, items, semestre, tipo) => { storeAddEval(ids, cat, nombre, items, semestre, tipo); setShowAddEval(false); }}
+                    nivelConfigs={nivelConfigs}
+                    onSave={(ids, cat, nombre, pct, items, semestre, tipo) => { storeAddEval(ids, cat, nombre, pct, items, semestre, tipo); setShowAddEval(false); }}
                     onClose={() => setShowAddEval(false)}
                 />
             )}
         </div>
     );
 }
+
 
 
 
