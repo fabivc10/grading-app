@@ -166,7 +166,15 @@ CREATE TABLE IF NOT EXISTS local_access_guard (
     access_code       TEXT    NOT NULL DEFAULT '',
     account_active    INTEGER NOT NULL DEFAULT 0,
     last_payment_date TEXT    NOT NULL DEFAULT '',
+    next_payment_date TEXT    NOT NULL DEFAULT '',
     last_access_date  TEXT    NOT NULL DEFAULT '',
     blocked_reason    TEXT    NOT NULL DEFAULT '',
     updated_at        TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS auth_session (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT    NOT NULL DEFAULT '',
+    updated_at TEXT    NOT NULL DEFAULT ''
 );

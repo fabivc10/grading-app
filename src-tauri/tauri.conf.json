@@ -27,7 +27,7 @@
       }
     },
     "sql": {
-      "preloadConnections": ["sqlite:grading.db"]
+      "preloadConnections": ["sqlite:grading-data/grading.db"]
     }
   },
   "bundle": {

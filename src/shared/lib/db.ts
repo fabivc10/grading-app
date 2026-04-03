@@ -1,5 +1,8 @@
 import Database from "@tauri-apps/plugin-sql";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { hashPassword } from "./crypto";
+
+const DB_PATH = "sqlite:grading-data/grading.db";
 
 // ─── Singleton connection ─────────────────────────────────────────────────────
 let _db: Database | null = null;
@@ -10,7 +13,10 @@ export async function getDb(): Promise<Database> {
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
-        const db = await Database.load("sqlite:grading.db");
+        if (isTauri()) {
+            await invoke("prepare_local_db_storage");
+        }
+        const db = await Database.load(DB_PATH);
         await runMigrations(db);
         _db = db;
         return db;
@@ -472,26 +478,33 @@ async function runMigrations(db: Database) {
         if (!instCols.map((c) => c.name).includes("icon_path"))
             await db.execute("ALTER TABLE institutions ADD COLUMN icon_path TEXT");
 
-        const estCols = await db.select<{ name: string }[]>("PRAGMA table_info(estudiantes)");
+        const studentsTable = await tableExists(db, "students") ? "students" : "estudiantes";
+        const estCols = await db.select<{ name: string }[]>(`PRAGMA table_info(${studentsTable})`);
         const estNames = estCols.map((c) => c.name);
-        if (!estNames.includes("fecha_nacimiento"))
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN fecha_nacimiento TEXT DEFAULT ''");
-        if (!estNames.includes("telefono_estudiante"))
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN telefono_estudiante TEXT DEFAULT ''");
-        if (!estNames.includes("tutor1_nombre"))
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor1_nombre TEXT DEFAULT ''");
-        if (!estNames.includes("tutor1_telefono")) {
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor1_telefono TEXT DEFAULT ''");
-            await db.execute("UPDATE estudiantes SET tutor1_telefono = telefono WHERE telefono IS NOT NULL AND telefono != ''");
+        const birthDateColumn = studentsTable === "students" ? "birth_date" : "fecha_nacimiento";
+        const guardian1NameColumn = studentsTable === "students" ? "guardian1_name" : "tutor1_nombre";
+        const guardian1PhoneColumn = studentsTable === "students" ? "guardian1_phone" : "tutor1_telefono";
+        const guardian2NameColumn = studentsTable === "students" ? "guardian2_name" : "tutor2_nombre";
+        const guardian2PhoneColumn = studentsTable === "students" ? "guardian2_phone" : "tutor2_telefono";
+        if (!estNames.includes(birthDateColumn))
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN ${birthDateColumn} TEXT DEFAULT ''`);
+        if (studentsTable !== "students" && !estNames.includes("telefono_estudiante"))
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN telefono_estudiante TEXT DEFAULT ''`);
+        if (!estNames.includes(guardian1NameColumn))
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN ${guardian1NameColumn} TEXT DEFAULT ''`);
+        if (!estNames.includes(guardian1PhoneColumn)) {
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN ${guardian1PhoneColumn} TEXT DEFAULT ''`);
+            await db.execute(`UPDATE ${studentsTable} SET ${guardian1PhoneColumn} = telefono WHERE telefono IS NOT NULL AND telefono != ''`);
         }
-        if (!estNames.includes("tutor2_nombre"))
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor2_nombre TEXT DEFAULT ''");
-        if (!estNames.includes("tutor2_telefono"))
-            await db.execute("ALTER TABLE estudiantes ADD COLUMN tutor2_telefono TEXT DEFAULT ''");
+        if (!estNames.includes(guardian2NameColumn))
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN ${guardian2NameColumn} TEXT DEFAULT ''`);
+        if (!estNames.includes(guardian2PhoneColumn))
+            await db.execute(`ALTER TABLE ${studentsTable} ADD COLUMN ${guardian2PhoneColumn} TEXT DEFAULT ''`);
 
-        const asigCols = await db.select<{ name: string }[]>("PRAGMA table_info(asignaturas)");
+        const subjectsTable = await tableExists(db, "subjects") ? "subjects" : "asignaturas";
+        const asigCols = await db.select<{ name: string }[]>(`PRAGMA table_info(${subjectsTable})`);
         if (!asigCols.map((c) => c.name).includes("created_at"))
-            await db.execute("ALTER TABLE asignaturas ADD COLUMN created_at TEXT DEFAULT ''");
+            await db.execute(`ALTER TABLE ${subjectsTable} ADD COLUMN created_at TEXT DEFAULT ''`);
 
         const userCols = await db.select<{ name: string }[]>("PRAGMA table_info(users)");
         const userNames = userCols.map((c) => c.name);
@@ -527,9 +540,11 @@ async function runMigrations(db: Database) {
 
     // ── always-check: tipo column in eval_entries ─────────────────────────────
     {
-        const entryCols = await db.select<{ name: string }[]>("PRAGMA table_info(eval_entries)");
-        if (!entryCols.map((c) => c.name).includes("tipo"))
-            await db.execute("ALTER TABLE eval_entries ADD COLUMN tipo TEXT NOT NULL DEFAULT 'numerica'");
+        const entriesTable = await tableExists(db, "evaluation_entries") ? "evaluation_entries" : "eval_entries";
+        const entryCols = await db.select<{ name: string }[]>(`PRAGMA table_info(${entriesTable})`);
+        const typeColumn = entriesTable === "evaluation_entries" ? "scale_type" : "tipo";
+        if (!entryCols.map((c) => c.name).includes(typeColumn))
+            await db.execute(`ALTER TABLE ${entriesTable} ADD COLUMN ${typeColumn} TEXT NOT NULL DEFAULT 'numerica'`);
     }
 
     {
@@ -546,6 +561,219 @@ async function runMigrations(db: Database) {
         `);
         await db.execute("UPDATE schema_version SET version = 20 WHERE id = 1");
     }
+
+    if (version < 21) {
+        const estCols = await db.select<{ name: string }[]>("PRAGMA table_info(estudiantes)");
+        const estNames = estCols.map((c) => c.name);
+        const needsRebuild = estNames.includes("telefono") || estNames.includes("telefono_estudiante");
+
+        if (needsRebuild) {
+            await db.execute("PRAGMA foreign_keys = OFF");
+            await db.execute(`
+                CREATE TABLE IF NOT EXISTS estudiantes_v21 (
+                    id              TEXT    PRIMARY KEY,
+                    institution_id  INTEGER NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+                    nombre_completo TEXT    NOT NULL,
+                    cedula          TEXT,
+                    edad            INTEGER NOT NULL DEFAULT 0,
+                    adecuacion      TEXT    NOT NULL DEFAULT 'no_tiene',
+                    fecha_nacimiento TEXT   DEFAULT '',
+                    tutor1_nombre   TEXT    DEFAULT '',
+                    tutor1_telefono TEXT    DEFAULT '',
+                    tutor2_nombre   TEXT    DEFAULT '',
+                    tutor2_telefono TEXT    DEFAULT ''
+                )
+            `);
+            await db.execute(`
+                INSERT INTO estudiantes_v21 (
+                    id, institution_id, nombre_completo, cedula, edad, adecuacion,
+                    fecha_nacimiento, tutor1_nombre, tutor1_telefono, tutor2_nombre, tutor2_telefono
+                )
+                SELECT
+                    id,
+                    institution_id,
+                    nombre_completo,
+                    cedula,
+                    COALESCE(edad, 0),
+                    COALESCE(adecuacion, 'no_tiene'),
+                    COALESCE(fecha_nacimiento, ''),
+                    COALESCE(tutor1_nombre, ''),
+                    COALESCE(tutor1_telefono, ''),
+                    COALESCE(tutor2_nombre, ''),
+                    COALESCE(tutor2_telefono, '')
+                FROM estudiantes
+            `);
+            await db.execute("DROP TABLE estudiantes");
+            await db.execute("ALTER TABLE estudiantes_v21 RENAME TO estudiantes");
+            await db.execute("PRAGMA foreign_keys = ON");
+        }
+
+        await db.execute("UPDATE schema_version SET version = 21 WHERE id = 1");
+    }
+
+    if (version < 22) {
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS auth_session (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+        `);
+        await db.execute("INSERT OR IGNORE INTO auth_session (id, user_id, created_at, updated_at) VALUES (1, NULL, '', '')");
+
+        const accessCols = await db.select<{ name: string }[]>("PRAGMA table_info(local_access_guard)");
+        const accessNames = accessCols.map((c) => c.name);
+        if (!accessNames.includes("next_payment_date")) {
+            await db.execute("ALTER TABLE local_access_guard ADD COLUMN next_payment_date TEXT NOT NULL DEFAULT ''");
+        }
+
+        await db.execute("UPDATE schema_version SET version = 22 WHERE id = 1");
+    }
+
+    if (version < 23) {
+        await migrateSchemaToEnglish(db);
+        await db.execute("UPDATE schema_version SET version = 23 WHERE id = 1");
+    }
+}
+
+async function tableExists(db: Database, tableName: string): Promise<boolean> {
+    const rows = await db.select<{ name: string }[]>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        [tableName]
+    );
+    return rows.length > 0;
+}
+
+async function listColumns(db: Database, tableName: string): Promise<string[]> {
+    if (!(await tableExists(db, tableName))) return [];
+    const rows = await db.select<{ name: string }[]>(`PRAGMA table_info("${tableName}")`);
+    return rows.map((row) => row.name);
+}
+
+async function renameTableIfExists(db: Database, currentName: string, nextName: string): Promise<void> {
+    if (currentName === nextName) return;
+    if (!(await tableExists(db, currentName)) || (await tableExists(db, nextName))) return;
+    await db.execute(`ALTER TABLE "${currentName}" RENAME TO "${nextName}"`);
+}
+
+async function renameColumnIfExists(db: Database, tableName: string, currentName: string, nextName: string): Promise<void> {
+    if (currentName === nextName) return;
+    const columns = await listColumns(db, tableName);
+    if (!columns.includes(currentName) || columns.includes(nextName)) return;
+    await db.execute(`ALTER TABLE "${tableName}" RENAME COLUMN "${currentName}" TO "${nextName}"`);
+}
+
+async function migrateSchemaToEnglish(db: Database): Promise<void> {
+    await db.execute("PRAGMA foreign_keys = OFF");
+
+    await renameTableIfExists(db, "asignaturas", "subjects");
+    await renameTableIfExists(db, "semestres", "terms");
+    await renameTableIfExists(db, "estudiantes", "students");
+    await renameTableIfExists(db, "estudiante_asignaturas", "student_subject_enrollments");
+    await renameTableIfExists(db, "horario_entries", "schedule_entries");
+    await renameTableIfExists(db, "horario_breaks", "schedule_breaks");
+    await renameTableIfExists(db, "evaluaciones", "student_evaluations");
+    await renameTableIfExists(db, "eval_entries", "evaluation_entries");
+    await renameTableIfExists(db, "eval_temas", "evaluation_items");
+    await renameTableIfExists(db, "eval_asistencia", "evaluation_attendance");
+    await renameTableIfExists(db, "student_cotidiano", "student_conduct");
+    await renameTableIfExists(db, "student_cotidiano_entries", "student_conduct_entries");
+    await renameTableIfExists(db, "student_cotidiano_items", "student_conduct_items");
+    await renameTableIfExists(db, "asistencia_semanas", "attendance_weeks");
+    await renameTableIfExists(db, "asistencia_dias", "attendance_days");
+
+    const subjectColumns = await listColumns(db, "subjects");
+    const yearColumn = subjectColumns.find((column) => column === "año" || column === "aÃ±o");
+    if (yearColumn) {
+        await renameColumnIfExists(db, "subjects", yearColumn, "year");
+    }
+    await renameColumnIfExists(db, "subjects", "nombre", "name");
+    await renameColumnIfExists(db, "subjects", "grupo", "group_name");
+    await renameColumnIfExists(db, "subjects", "seccion", "section");
+    await renameColumnIfExists(db, "subjects", "lecciones", "lesson_count");
+
+    await renameColumnIfExists(db, "terms", "asignatura_id", "subject_id");
+    await renameColumnIfExists(db, "terms", "nombre", "name");
+
+    await renameColumnIfExists(db, "students", "nombre_completo", "full_name");
+    await renameColumnIfExists(db, "students", "cedula", "national_id");
+    await renameColumnIfExists(db, "students", "adecuacion", "accommodation");
+    await renameColumnIfExists(db, "students", "fecha_nacimiento", "birth_date");
+    await renameColumnIfExists(db, "students", "tutor1_nombre", "guardian1_name");
+    await renameColumnIfExists(db, "students", "tutor1_telefono", "guardian1_phone");
+    await renameColumnIfExists(db, "students", "tutor2_nombre", "guardian2_name");
+    await renameColumnIfExists(db, "students", "tutor2_telefono", "guardian2_phone");
+
+    await renameColumnIfExists(db, "student_subject_enrollments", "estudiante_id", "student_id");
+    await renameColumnIfExists(db, "student_subject_enrollments", "asignatura_id", "subject_id");
+
+    await renameColumnIfExists(db, "schedule_entries", "asignatura_id", "subject_id");
+    await renameColumnIfExists(db, "schedule_entries", "leccion_num", "lesson_number");
+
+    await renameColumnIfExists(db, "schedule_breaks", "nombre", "name");
+
+    await renameColumnIfExists(db, "student_evaluations", "asignatura_id", "subject_id");
+    await renameColumnIfExists(db, "student_evaluations", "nombre", "name");
+    await renameColumnIfExists(db, "student_evaluations", "estudiante_id", "student_id");
+    await renameColumnIfExists(db, "student_evaluations", "conducta_pct", "conduct_pct");
+
+    await renameColumnIfExists(db, "evaluation_entries", "evaluacion_id", "evaluation_id");
+    await renameColumnIfExists(db, "evaluation_entries", "nombre", "name");
+    await renameColumnIfExists(db, "evaluation_entries", "semestre", "term");
+    await renameColumnIfExists(db, "evaluation_entries", "tipo", "scale_type");
+
+    await renameColumnIfExists(db, "evaluation_items", "tema", "topic");
+    await renameColumnIfExists(db, "evaluation_items", "nombre", "name");
+    await renameColumnIfExists(db, "evaluation_items", "descripcion", "description");
+    await renameColumnIfExists(db, "evaluation_items", "valor", "max_points");
+    await renameColumnIfExists(db, "evaluation_items", "nota", "score");
+    await renameColumnIfExists(db, "evaluation_items", "nota_descripcion", "score_note");
+
+    await renameColumnIfExists(db, "evaluation_attendance", "evaluacion_id", "evaluation_id");
+    await renameColumnIfExists(db, "evaluation_attendance", "semestre", "term");
+    await renameColumnIfExists(db, "evaluation_attendance", "semana", "week_number");
+    await renameColumnIfExists(db, "evaluation_attendance", "dias", "days");
+
+    await renameColumnIfExists(db, "student_conduct", "estudiante_id", "student_id");
+    await renameColumnIfExists(db, "student_conduct", "conducta_pct", "conduct_pct");
+
+    await renameColumnIfExists(db, "student_conduct_entries", "estudiante_id", "student_id");
+    await renameColumnIfExists(db, "student_conduct_entries", "nombre", "name");
+
+    await renameColumnIfExists(db, "student_conduct_items", "tema", "topic");
+    await renameColumnIfExists(db, "student_conduct_items", "nombre", "name");
+    await renameColumnIfExists(db, "student_conduct_items", "descripcion", "description");
+    await renameColumnIfExists(db, "student_conduct_items", "valor", "max_points");
+    await renameColumnIfExists(db, "student_conduct_items", "nota", "score");
+
+    await renameColumnIfExists(db, "attendance_weeks", "asignatura_id", "subject_id");
+    await renameColumnIfExists(db, "attendance_weeks", "semestre", "term");
+    await renameColumnIfExists(db, "attendance_weeks", "inicio_date", "start_date");
+    await renameColumnIfExists(db, "attendance_weeks", "orden", "sort_order");
+
+    await renameColumnIfExists(db, "attendance_days", "semana_id", "week_id");
+    await renameColumnIfExists(db, "attendance_days", "estudiante_id", "student_id");
+    await renameColumnIfExists(db, "attendance_days", "l", "monday");
+    await renameColumnIfExists(db, "attendance_days", "m", "tuesday");
+    await renameColumnIfExists(db, "attendance_days", "x", "wednesday");
+    await renameColumnIfExists(db, "attendance_days", "j", "thursday");
+    await renameColumnIfExists(db, "attendance_days", "v", "friday");
+
+    await renameColumnIfExists(db, "institutions", "tipo_institucion", "institution_type");
+    await renameColumnIfExists(db, "institutions", "direccion_regional", "regional_office");
+    await renameColumnIfExists(db, "institutions", "circuito", "circuit");
+
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_subjects_institution_year ON subjects (institution_id, year)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_institution_name ON students (institution_id, full_name)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_student_subject_enrollments_subject_id ON student_subject_enrollments (subject_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_student_evaluations_subject_student ON student_evaluations (subject_id, student_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_evaluation_entries_evaluation_category ON evaluation_entries (evaluation_id, category)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_evaluation_items_entry_id ON evaluation_items (entry_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_weeks_subject_term ON attendance_weeks (subject_id, term, start_date)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_days_week_student ON attendance_days (week_id, student_id)`);
+
+    await db.execute("PRAGMA foreign_keys = ON");
 }
 
 // ─── Default user ─────────────────────────────────────────────────────────────

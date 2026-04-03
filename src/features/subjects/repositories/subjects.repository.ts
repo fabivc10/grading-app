@@ -4,7 +4,7 @@ import type { AsignaturaDTO, SemestreDTO } from "../types";
 export async function findByInstitution(institutionId: number): Promise<AsignaturaDTO[]> {
     const db = await getDb();
     return db.select<AsignaturaDTO[]>(
-        'SELECT id, institution_id, "año" as year, nombre, grupo, seccion, lecciones, created_at FROM asignaturas WHERE institution_id = ? ORDER BY "año" DESC, nombre',
+        "SELECT id, institution_id, year, name as nombre, group_name as grupo, section as seccion, lesson_count as lecciones, created_at FROM subjects WHERE institution_id = ? ORDER BY year DESC, name",
         [institutionId]
     );
 }
@@ -14,7 +14,7 @@ export async function findSemestresByAsignaturas(asignaturaIds: string[]): Promi
     const db = await getDb();
     const placeholders = asignaturaIds.map(() => "?").join(",");
     return db.select<SemestreDTO[]>(
-        `SELECT * FROM semestres WHERE asignatura_id IN (${placeholders})`,
+        `SELECT id, subject_id as asignatura_id, name as nombre FROM terms WHERE subject_id IN (${placeholders})`,
         asignaturaIds
     );
 }
@@ -31,7 +31,7 @@ export async function insert(
 ): Promise<void> {
     const db = await getDb();
     await db.execute(
-        'INSERT INTO asignaturas (id, institution_id, "año", nombre, grupo, seccion, lecciones, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        "INSERT INTO subjects (id, institution_id, year, name, group_name, section, lesson_count, created_at) VALUES (?,?,?,?,?,?,?,?)",
         [id, institutionId, year, nombre, grupo, seccion, lecciones, createdAt]
     );
 }
@@ -39,7 +39,7 @@ export async function insert(
 export async function insertSemestre(id: string, asignaturaId: string, nombre: string): Promise<void> {
     const db = await getDb();
     await db.execute(
-        "INSERT INTO semestres (id, asignatura_id, nombre) VALUES (?,?,?)",
+        "INSERT INTO terms (id, subject_id, name) VALUES (?,?,?)",
         [id, asignaturaId, nombre]
     );
 }
@@ -54,25 +54,25 @@ export async function update(
 ): Promise<void> {
     const db = await getDb();
     await db.execute(
-        'UPDATE asignaturas SET "año"=?, nombre=?, grupo=?, seccion=?, lecciones=? WHERE id=?',
+        "UPDATE subjects SET year=?, name=?, group_name=?, section=?, lesson_count=? WHERE id=?",
         [year, nombre, grupo, seccion, lecciones, id]
     );
 }
 
 export async function updateSemestre(id: string, nombre: string): Promise<void> {
     const db = await getDb();
-    await db.execute("UPDATE semestres SET nombre=? WHERE id=?", [nombre, id]);
+    await db.execute("UPDATE terms SET name=? WHERE id=?", [nombre, id]);
 }
 
 export async function remove(id: string): Promise<void> {
     const db = await getDb();
-    await db.execute("DELETE FROM asignaturas WHERE id=?", [id]);
+    await db.execute("DELETE FROM subjects WHERE id=?", [id]);
 }
 
 export async function decrementLecciones(id: string): Promise<void> {
     const db = await getDb();
     await db.execute(
-        "UPDATE asignaturas SET lecciones = MAX(0, lecciones - 1) WHERE id=?",
+        "UPDATE subjects SET lesson_count = MAX(0, lesson_count - 1) WHERE id=?",
         [id]
     );
 }

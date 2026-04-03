@@ -3,14 +3,22 @@ import { genId } from "../../../shared/lib/genId";
 import type { StudentEval, StudentCotidiano, TemaItem, EvalEntry, EvalTipo, SemanaAsist, EvalCategory } from "../types";
 import type { AttendanceMark } from "../../attendance/utils/attendance.utils";
 
-type EvalRow   = { id: string; institution_id: number; asignatura_id: string; nombre: string; estudiante_id: string | null };
-type EntryRow  = { id: string; evaluacion_id: string; category: string; nombre: string; pct: number; semestre: string; tipo: string };
-type TemaRow   = { id: string; entry_id: string; tema: string; nombre: string; descripcion: string; valor: number; nota: number; nota_descripcion: string };
-type AsistRow  = { id: string; evaluacion_id: string; semestre: string; semana: number; dias: string };
-type AsistWeekRow = { id: string; asignatura_id: string; semestre: string; inicio_date: string };
-type AsistDayRow = { semana_id: string; estudiante_id: string; l: string | null; m: string | null; x: string | null; j: string | null; v: string | null };
-type EnrollRow = { estudiante_id: string; nombre_completo: string; asignatura_id: string };
-type CotRow    = { estudiante_id: string; conducta_pct: number };
+type EvalRow = { id: string; institution_id: number; subject_id: string; name: string; student_id: string | null };
+type EntryRow = { id: string; evaluation_id: string; category: string; name: string; pct: number; term: string; scale_type: string };
+type TemaRow = { id: string; entry_id: string; topic: string; name: string; description: string; max_points: number; score: number; score_note: string };
+type AsistRow = { id: string; evaluation_id: string; term: string; week_number: number; days: string };
+type AsistWeekRow = { id: string; subject_id: string; term: string; start_date: string };
+type AsistDayRow = {
+    week_id: string;
+    student_id: string;
+    monday: string | null;
+    tuesday: string | null;
+    wednesday: string | null;
+    thursday: string | null;
+    friday: string | null;
+};
+type EnrollRow = { student_id: string; full_name: string; subject_id: string };
+type CotRow = { student_id: string; conduct_pct: number };
 
 const ASIG_CATS: EvalCategory[] = ["cotidiano", "tareas", "prueba", "proyecto"];
 
@@ -20,133 +28,141 @@ async function syncEvaluacionesWithEnrollments(institutionId: number): Promise<v
     const db = await getDb();
 
     const enrollments = await db.select<EnrollRow[]>(`
-        SELECT e.id as estudiante_id, e.nombre_completo, ea.asignatura_id
-        FROM estudiante_asignaturas ea
-        JOIN estudiantes e ON e.id = ea.estudiante_id
-        WHERE e.institution_id = ?
+        SELECT s.id as student_id, s.full_name, e.subject_id
+        FROM student_subject_enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE s.institution_id = ?
     `, [institutionId]);
 
-    const existing = await db.select<{ id: string; estudiante_id: string | null; asignatura_id: string; nombre: string }[]>(
-        "SELECT id, estudiante_id, asignatura_id, nombre FROM evaluaciones WHERE institution_id = ?",
+    const existing = await db.select<{ id: string; student_id: string | null; subject_id: string; name: string }[]>(
+        "SELECT id, student_id, subject_id, name FROM student_evaluations WHERE institution_id = ?",
         [institutionId]
     );
 
     const enrollmentKeySet = new Set(
-        enrollments.map((enroll) => `${enroll.estudiante_id}::${enroll.asignatura_id}`)
+        enrollments.map((enroll) => `${enroll.student_id}::${enroll.subject_id}`)
     );
 
     for (const record of existing) {
-        if (!record.estudiante_id) continue;
+        if (!record.student_id) continue;
 
-        const key = `${record.estudiante_id}::${record.asignatura_id}`;
+        const key = `${record.student_id}::${record.subject_id}`;
         if (!enrollmentKeySet.has(key)) {
-            await db.execute("DELETE FROM evaluaciones WHERE id = ?", [record.id]);
+            await db.execute("DELETE FROM student_evaluations WHERE id = ?", [record.id]);
         }
     }
 
     const existingMap = new Map(
         existing
-            .filter((record) => Boolean(record.estudiante_id))
-            .map((record) => [`${record.estudiante_id}::${record.asignatura_id}`, record])
+            .filter((record) => Boolean(record.student_id))
+            .map((record) => [`${record.student_id}::${record.subject_id}`, record])
     );
 
     for (const enroll of enrollments) {
-        const key = `${enroll.estudiante_id}::${enroll.asignatura_id}`;
+        const key = `${enroll.student_id}::${enroll.subject_id}`;
         const found = existingMap.get(key);
 
         if (!found) {
             await db.execute(
-                "INSERT INTO evaluaciones (id, institution_id, asignatura_id, nombre, estudiante_id) VALUES (?,?,?,?,?)",
-                [genId(), institutionId, enroll.asignatura_id, enroll.nombre_completo, enroll.estudiante_id]
+                "INSERT INTO student_evaluations (id, institution_id, subject_id, name, student_id) VALUES (?,?,?,?,?)",
+                [genId(), institutionId, enroll.subject_id, enroll.full_name, enroll.student_id]
             );
             continue;
         }
 
-        if (found.nombre !== enroll.nombre_completo) {
+        if (found.name !== enroll.full_name) {
             await db.execute(
-                "UPDATE evaluaciones SET nombre = ? WHERE id = ?",
-                [enroll.nombre_completo, found.id]
+                "UPDATE student_evaluations SET name = ? WHERE id = ?",
+                [enroll.full_name, found.id]
             );
         }
     }
 }
 
-// â”€â”€â”€ Fetch evaluaciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function fetchEvaluaciones(institutionId: number): Promise<StudentEval[]> {
     await syncEvaluacionesWithEnrollments(institutionId);
 
     const db = await getDb();
 
     const rows = await db.select<EvalRow[]>(
-        "SELECT id, institution_id, asignatura_id, nombre, estudiante_id FROM evaluaciones WHERE institution_id = ?",
+        "SELECT id, institution_id, subject_id, name, student_id FROM student_evaluations WHERE institution_id = ?",
         [institutionId]
     );
     if (!rows.length) return [];
 
     const ids = rows.map((r) => r.id);
     const entries = await db.select<EntryRow[]>(
-        `SELECT * FROM eval_entries WHERE evaluacion_id IN (${ph(ids.length)})`, ids
+        `SELECT id, evaluation_id, category, name, pct, term, scale_type FROM evaluation_entries WHERE evaluation_id IN (${ph(ids.length)})`,
+        ids
     );
 
     let temas: TemaRow[] = [];
     if (entries.length > 0) {
         const eids = entries.map((e) => e.id);
         temas = await db.select<TemaRow[]>(
-            `SELECT * FROM eval_temas WHERE entry_id IN (${ph(eids.length)})`, eids
+            `SELECT id, entry_id, topic, name, description, max_points, score, score_note FROM evaluation_items WHERE entry_id IN (${ph(eids.length)})`,
+            eids
         );
     }
 
     const asist = await db.select<AsistRow[]>(
-        `SELECT * FROM eval_asistencia WHERE evaluacion_id IN (${ph(ids.length)})`, ids
+        `SELECT id, evaluation_id, term, week_number, days FROM evaluation_attendance WHERE evaluation_id IN (${ph(ids.length)})`,
+        ids
     );
 
-    const asigIds = [...new Set(rows.map((r) => r.asignatura_id))];
-    let asistenciaWeeks: AsistWeekRow[] = [];
-    let asistenciaDays: AsistDayRow[] = [];
-    if (asigIds.length > 0) {
-        asistenciaWeeks = await db.select<AsistWeekRow[]>(
-            `SELECT id, asignatura_id, semestre, inicio_date FROM asistencia_semanas WHERE asignatura_id IN (${ph(asigIds.length)})`,
-            asigIds
+    const subjectIds = [...new Set(rows.map((r) => r.subject_id))];
+    let attendanceWeeks: AsistWeekRow[] = [];
+    let attendanceDays: AsistDayRow[] = [];
+    if (subjectIds.length > 0) {
+        attendanceWeeks = await db.select<AsistWeekRow[]>(
+            `SELECT id, subject_id, term, start_date FROM attendance_weeks WHERE subject_id IN (${ph(subjectIds.length)})`,
+            subjectIds
         );
 
-        if (asistenciaWeeks.length > 0) {
-            const weekIds = asistenciaWeeks.map((week) => week.id);
-            asistenciaDays = await db.select<AsistDayRow[]>(
-                `SELECT semana_id, estudiante_id, l, m, x, j, v FROM asistencia_dias WHERE semana_id IN (${ph(weekIds.length)})`,
+        if (attendanceWeeks.length > 0) {
+            const weekIds = attendanceWeeks.map((week) => week.id);
+            attendanceDays = await db.select<AsistDayRow[]>(
+                `SELECT week_id, student_id, monday, tuesday, wednesday, thursday, friday FROM attendance_days WHERE week_id IN (${ph(weekIds.length)})`,
                 weekIds
             );
         }
     }
 
     return rows.map((r): StudentEval => {
-        const myEntries = entries.filter((e) => e.evaluacion_id === r.id);
+        const myEntries = entries.filter((e) => e.evaluation_id === r.id);
 
         const toEntries = (cat: EvalCategory): EvalEntry[] =>
             myEntries.filter((e) => e.category === cat).map((e) => ({
-                id: e.id, nombre: e.nombre, pct: e.pct,
-                semestre: ((e.semestre as string) === 's2' ? 's2' : 's1') as 's1' | 's2',
-                tipo: (e.tipo || "numerica") as EvalTipo,
+                id: e.id,
+                nombre: e.name,
+                pct: e.pct,
+                semestre: ((e.term as string) === "s2" ? "s2" : "s1") as "s1" | "s2",
+                tipo: (e.scale_type || "numerica") as EvalTipo,
                 items: temas.filter((t) => t.entry_id === e.id).map((t) => ({
-                    id: t.id, tema: t.tema, nombre: t.nombre,
-                    descripcion: t.descripcion, valor: t.valor, nota: t.nota ?? t.valor,
-                    notaDescripcion: t.nota_descripcion ?? "",
+                    id: t.id,
+                    tema: t.topic,
+                    nombre: t.name,
+                    descripcion: t.description,
+                    valor: t.max_points,
+                    nota: t.score ?? t.max_points,
+                    notaDescripcion: t.score_note ?? "",
                 })),
             }));
 
         const toSemanas = (sem: string): SemanaAsist[] => {
-            const liveWeeks = r.estudiante_id
-                ? asistenciaWeeks
-                    .filter((week) => week.asignatura_id === r.asignatura_id && week.semestre === sem)
-                    .sort((a, b) => a.inicio_date.localeCompare(b.inicio_date))
+            const liveWeeks = r.student_id
+                ? attendanceWeeks
+                    .filter((week) => week.subject_id === r.subject_id && week.term === sem)
+                    .sort((a, b) => a.start_date.localeCompare(b.start_date))
                     .flatMap((week, index) => {
-                        const dayRow = asistenciaDays.find((day) =>
-                            day.semana_id === week.id && day.estudiante_id === r.estudiante_id
+                        const dayRow = attendanceDays.find((day) =>
+                            day.week_id === week.id && day.student_id === r.student_id
                         );
                         if (!dayRow) return [];
                         return [{
                             id: week.id,
                             semana: index + 1,
-                            dias: [dayRow.l, dayRow.m, dayRow.x, dayRow.j, dayRow.v] as AttendanceMark[],
+                            dias: [dayRow.monday, dayRow.tuesday, dayRow.wednesday, dayRow.thursday, dayRow.friday] as AttendanceMark[],
                         }];
                     })
                 : [];
@@ -154,60 +170,61 @@ export async function fetchEvaluaciones(institutionId: number): Promise<StudentE
             if (liveWeeks.length > 0) return liveWeeks;
 
             return asist
-                .filter((a) => a.evaluacion_id === r.id && a.semestre === sem)
-                .map((a) => ({ id: a.id, semana: a.semana, dias: JSON.parse(a.dias) as AttendanceMark[] }));
+                .filter((a) => a.evaluation_id === r.id && a.term === sem)
+                .map((a) => ({ id: a.id, semana: a.week_number, dias: JSON.parse(a.days) as AttendanceMark[] }));
         };
 
         return {
-            id: r.id, nombre: r.nombre,
-            asignaturaId: r.asignatura_id,
-            estudianteId: r.estudiante_id ?? undefined,
+            id: r.id,
+            nombre: r.name,
+            asignaturaId: r.subject_id,
+            estudianteId: r.student_id ?? undefined,
             cotidiano: toEntries("cotidiano"),
-            tareas:    toEntries("tareas"),
-            prueba:    toEntries("prueba"),
-            proyecto:  toEntries("proyecto"),
+            tareas: toEntries("tareas"),
+            prueba: toEntries("prueba"),
+            proyecto: toEntries("proyecto"),
             asistencia: { s1: toSemanas("s1"), s2: toSemanas("s2") },
         };
     });
 }
 
-// â”€â”€â”€ Fetch student conducta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function fetchStudentCotidianos(institutionId: number): Promise<StudentCotidiano[]> {
     const db = await getDb();
     const students = await db.select<{ id: string }[]>(
-        "SELECT id FROM estudiantes WHERE institution_id = ?", [institutionId]
+        "SELECT id FROM students WHERE institution_id = ?",
+        [institutionId]
     );
     if (!students.length) return [];
     for (const s of students) {
         await db.execute(
-            "INSERT OR IGNORE INTO student_cotidiano (estudiante_id, conducta_pct) VALUES (?,?)",
+            "INSERT OR IGNORE INTO student_conduct (student_id, conduct_pct) VALUES (?,?)",
             [s.id, 100]
         );
     }
     const sids = students.map((s) => s.id);
     const rows = await db.select<CotRow[]>(
-        `SELECT * FROM student_cotidiano WHERE estudiante_id IN (${ph(sids.length)})`, sids
+        `SELECT student_id, conduct_pct FROM student_conduct WHERE student_id IN (${ph(sids.length)})`,
+        sids
     );
-    return rows.map((c) => ({ estudianteId: c.estudiante_id, conductaPct: c.conducta_pct ?? 100 }));
+    return rows.map((c) => ({ estudianteId: c.student_id, conductaPct: c.conduct_pct ?? 100 }));
 }
 
-// â”€â”€â”€ Update evaluacion categories / asistencia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function updateEvaluacion(id: string, patch: Partial<StudentEval>): Promise<void> {
     const db = await getDb();
 
     if (ASIG_CATS.some((c) => c in patch)) {
-        await db.execute("DELETE FROM eval_entries WHERE evaluacion_id=?", [id]);
+        await db.execute("DELETE FROM evaluation_entries WHERE evaluation_id=?", [id]);
         for (const cat of ASIG_CATS) {
             const entries = (patch as Record<string, EvalEntry[]>)[cat];
             if (!entries) continue;
             for (const entry of entries) {
                 await db.execute(
-                    "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre, tipo) VALUES (?,?,?,?,?,?,?)",
-                    [entry.id, id, cat, entry.nombre, entry.pct, entry.semestre ?? 's1', entry.tipo ?? 'numerica']
+                    "INSERT INTO evaluation_entries (id, evaluation_id, category, name, pct, term, scale_type) VALUES (?,?,?,?,?,?,?)",
+                    [entry.id, id, cat, entry.nombre, entry.pct, entry.semestre ?? "s1", entry.tipo ?? "numerica"]
                 );
                 for (const item of entry.items) {
                     await db.execute(
-                        "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota, nota_descripcion) VALUES (?,?,?,?,?,?,?,?)",
+                        "INSERT INTO evaluation_items (id, entry_id, topic, name, description, max_points, score, score_note) VALUES (?,?,?,?,?,?,?,?)",
                         [item.id, entry.id, item.tema, item.nombre, item.descripcion, item.valor, item.nota, item.notaDescripcion ?? ""]
                     );
                 }
@@ -216,11 +233,11 @@ export async function updateEvaluacion(id: string, patch: Partial<StudentEval>):
     }
 
     if (patch.asistencia) {
-        await db.execute("DELETE FROM eval_asistencia WHERE evaluacion_id=?", [id]);
+        await db.execute("DELETE FROM evaluation_attendance WHERE evaluation_id=?", [id]);
         for (const [sem, semanas] of [["s1", patch.asistencia.s1], ["s2", patch.asistencia.s2]] as [string, SemanaAsist[]][]) {
             for (const s of semanas) {
                 await db.execute(
-                    "INSERT INTO eval_asistencia (id, evaluacion_id, semestre, semana, dias) VALUES (?,?,?,?,?)",
+                    "INSERT INTO evaluation_attendance (id, evaluation_id, term, week_number, days) VALUES (?,?,?,?,?)",
                     [s.id ?? genId(), id, sem, s.semana, JSON.stringify(s.dias)]
                 );
             }
@@ -228,29 +245,28 @@ export async function updateEvaluacion(id: string, patch: Partial<StudentEval>):
     }
 }
 
-// â”€â”€â”€ Batch-add an eval entry to multiple records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function addEvalEntryBatch(
     recordIds: string[],
     category: EvalCategory,
     nombre: string,
+    pct: number,
     items: TemaItem[],
-    semestre: 's1' | 's2',
-    tipo: EvalTipo = 'numerica'
+    semestre: "s1" | "s2",
+    tipo: EvalTipo = "numerica"
 ): Promise<{ recordId: string; entryId: string; items: TemaItem[] }[]> {
     const db = await getDb();
-    const pct = items.reduce((s, i) => s + i.valor, 0);
     const result: { recordId: string; entryId: string; items: TemaItem[] }[] = [];
     for (const recordId of recordIds) {
         const entryId = genId();
         await db.execute(
-            "INSERT INTO eval_entries (id, evaluacion_id, category, nombre, pct, semestre, tipo) VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO evaluation_entries (id, evaluation_id, category, name, pct, term, scale_type) VALUES (?,?,?,?,?,?,?)",
             [entryId, recordId, category, nombre, pct, semestre, tipo]
         );
         const savedItems: TemaItem[] = [];
         for (const item of items) {
             const itemId = genId();
             await db.execute(
-                "INSERT INTO eval_temas (id, entry_id, tema, nombre, descripcion, valor, nota, nota_descripcion) VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO evaluation_items (id, entry_id, topic, name, description, max_points, score, score_note) VALUES (?,?,?,?,?,?,?,?)",
                 [itemId, entryId, item.tema, item.nombre, item.descripcion, item.valor, item.valor, ""]
             );
             savedItems.push({ ...item, id: itemId, nota: item.valor, notaDescripcion: "" });
@@ -260,12 +276,11 @@ export async function addEvalEntryBatch(
     return result;
 }
 
-// â”€â”€â”€ Update student conducta % â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function updateStudentCotidiano(estudianteId: string, patch: Partial<StudentCotidiano>): Promise<void> {
     const db = await getDb();
     if (patch.conductaPct !== undefined) {
         await db.execute(
-            "UPDATE student_cotidiano SET conducta_pct = ? WHERE estudiante_id = ?",
+            "UPDATE student_conduct SET conduct_pct = ? WHERE student_id = ?",
             [patch.conductaPct, estudianteId]
         );
     }
@@ -274,12 +289,12 @@ export async function updateStudentCotidiano(estudianteId: string, patch: Partia
 export async function insertEvaluacion(institutionId: number, r: StudentEval): Promise<void> {
     const db = await getDb();
     await db.execute(
-        "INSERT INTO evaluaciones (id, institution_id, asignatura_id, nombre, estudiante_id) VALUES (?,?,?,?,?)",
+        "INSERT INTO student_evaluations (id, institution_id, subject_id, name, student_id) VALUES (?,?,?,?,?)",
         [r.id, institutionId, r.asignaturaId, r.nombre, r.estudianteId ?? null]
     );
 }
 
 export async function deleteEvaluacion(id: string): Promise<void> {
     const db = await getDb();
-    await db.execute("DELETE FROM evaluaciones WHERE id=?", [id]);
+    await db.execute("DELETE FROM student_evaluations WHERE id=?", [id]);
 }
