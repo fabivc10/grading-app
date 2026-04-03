@@ -17,6 +17,7 @@ export type LocalAccessRecord = {
     access_code: string;
     account_active: number;
     last_payment_date: string;
+    next_payment_date: string;
     last_access_date: string;
     blocked_reason: string;
     updated_at: string;
@@ -28,6 +29,7 @@ export type AccessEvaluation =
         publicAccountId: string;
         accessCode: string;
         lastPaymentDate: string;
+        nextPaymentDate: string;
         lastAccessDate: string;
         message: string;
     }
@@ -36,6 +38,7 @@ export type AccessEvaluation =
         publicAccountId: string;
         accessCode: string;
         lastPaymentDate: string;
+        nextPaymentDate: string;
         lastAccessDate: string;
         message: string;
     };

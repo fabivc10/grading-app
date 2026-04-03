@@ -1,11 +1,8 @@
-import { ACCESS_GUARD_KEY } from "../../../shared/constants";
 import { supabase } from "../../../shared/lib/supabase";
 import type { User } from "../../auth/types";
 import * as authRepo from "../../auth/repositories/auth-user.repository";
 import * as repo from "../repositories/access.repository";
 import type { AccessEvaluation, LocalAccessRecord, RemoteAccessRecord } from "../types";
-
-type BrowserAccessCache = Record<number, LocalAccessRecord>;
 
 function todayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -15,45 +12,8 @@ function nowIso() {
     return new Date().toISOString();
 }
 
-function isAccessCodeExpired(codeGeneratedAt?: string | null) {
-    if (!codeGeneratedAt) return true;
-    const generatedAtMs = Date.parse(codeGeneratedAt);
-    if (Number.isNaN(generatedAtMs)) return true;
-    return Date.now() - generatedAtMs >= 24 * 60 * 60 * 1000;
-}
-
-function generateAccessCode() {
-    const seed = Math.random().toString(36).slice(2).toUpperCase();
-    return `ACC-${seed.slice(0, 4)}-${seed.slice(4, 8)}`;
-}
-
-function readBrowserCache(): BrowserAccessCache {
-    if (typeof window === "undefined") return {};
-    try {
-        const raw = window.localStorage.getItem(ACCESS_GUARD_KEY);
-        return raw ? JSON.parse(raw) as BrowserAccessCache : {};
-    } catch {
-        return {};
-    }
-}
-
-function writeBrowserCache(cache: BrowserAccessCache) {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(ACCESS_GUARD_KEY, JSON.stringify(cache));
-}
-
-function getSessionGrantKey(userId: number) {
-    return `${ACCESS_GUARD_KEY}:session:${userId}`;
-}
-
-function readSessionGrant(userId: number) {
-    if (typeof window === "undefined") return "";
-    return window.sessionStorage.getItem(getSessionGrantKey(userId)) ?? "";
-}
-
-function writeSessionGrant(userId: number, value: string) {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(getSessionGrantKey(userId), value);
+function normalizeAccessCode(value: string) {
+    return value.trim().toUpperCase();
 }
 
 function missingTablesMessage(message: string) {
@@ -62,6 +22,53 @@ function missingTablesMessage(message: string) {
         message.includes("user_access_codes")
         ? "Las tablas remotas de acceso no existen todavia. Aplica database/manual/supabase-one-time/001_user_access_setup.sql en Supabase."
         : message;
+}
+
+function parseDate(value?: string | null) {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addOneExactYear(value: string) {
+    const parsed = parseDate(value);
+    if (!parsed) return "";
+    const next = new Date(parsed);
+    next.setFullYear(next.getFullYear() + 1);
+    return next.toISOString();
+}
+
+function getStoredNextPaymentDate(local: LocalAccessRecord) {
+    if (local.next_payment_date) return local.next_payment_date;
+    if (local.last_payment_date) return addOneExactYear(local.last_payment_date);
+    return "";
+}
+
+function isPaymentExpired(nextPaymentDate: string) {
+    const parsed = parseDate(nextPaymentDate);
+    if (!parsed) return true;
+    return Date.now() >= parsed.getTime();
+}
+
+function hasRemoteVerifiedAccess(remote: RemoteAccessRecord) {
+    return remote.account_active || Boolean(normalizeAccessCode(remote.access_code));
+}
+
+function baseResult(
+    status: AccessEvaluation["status"],
+    record: Pick<LocalAccessRecord, "access_code" | "last_payment_date" | "next_payment_date" | "last_access_date">,
+    message: string,
+    publicAccountId = "",
+): AccessEvaluation {
+    return {
+        status,
+        publicAccountId,
+        accessCode: record.access_code,
+        lastPaymentDate: record.last_payment_date,
+        nextPaymentDate: record.next_payment_date,
+        lastAccessDate: record.last_access_date,
+        message,
+    };
 }
 
 async function getRemoteIdentity(user: User) {
@@ -79,143 +86,106 @@ async function getRemoteIdentity(user: User) {
 }
 
 async function readLocalAccess(userId: number): Promise<LocalAccessRecord | null> {
-    try {
-        return await repo.findLocalAccessByUserId(userId);
-    } catch {
-        return readBrowserCache()[userId] ?? null;
-    }
+    return repo.findLocalAccessByUserId(userId);
 }
 
 async function writeLocalAccess(record: LocalAccessRecord): Promise<void> {
+    await repo.upsertLocalAccess(record);
+}
+
+async function tryFetchRemotePaymentHint(user: User): Promise<Pick<RemoteAccessRecord, "public_user_id"> | null> {
     try {
-        await repo.upsertLocalAccess(record);
+        await syncRemoteAccessShell(user);
+        const remote = await fetchRemoteAccess(user);
+        return remote ? { public_user_id: remote.public_user_id } : null;
     } catch {
-        const cache = readBrowserCache();
-        cache[record.user_id] = record;
-        writeBrowserCache(cache);
+        return null;
     }
 }
 
-async function reconcileRemoteAccessState(remote: RemoteAccessRecord): Promise<RemoteAccessRecord> {
-    const currentCode = remote.access_code?.trim() ?? "";
-    const shouldRotateCode = !currentCode || isAccessCodeExpired(remote.code_generated_at);
-    const nextCode = shouldRotateCode ? generateAccessCode() : currentCode;
-    const shouldUpdateCode = shouldRotateCode && nextCode !== currentCode;
-    const nextCodeGeneratedAt = shouldUpdateCode ? nowIso() : null;
-    const nextActivatedAt = remote.account_active
-        ? (remote.activated_at ?? nowIso())
-        : remote.activated_at;
-    const shouldUpdateActivation = remote.account_active && nextActivatedAt !== remote.activated_at;
-
-    if (!shouldUpdateCode && !shouldUpdateActivation) {
-        return remote;
-    }
-
-    const updates = await Promise.all([
-        shouldUpdateCode
-            ? supabase.from("user_access_codes").upsert({
-                auth_user_uuid: remote.auth_user_uuid,
-                access_code: nextCode,
-                code_generated_at: nextCodeGeneratedAt,
-            })
-            : Promise.resolve({ error: null }),
-        shouldUpdateActivation
-            ? supabase.from("user_payments").upsert({
-                auth_user_uuid: remote.auth_user_uuid,
-                account_active: true,
-                activated_at: nextActivatedAt,
-            })
-            : Promise.resolve({ error: null }),
-    ]);
-
-    const codeError = updates[0].error;
-    const paymentError = updates[1].error;
-
-    if (codeError) {
-        throw new Error(missingTablesMessage(codeError.message));
-    }
-
-    if (paymentError) {
-        throw new Error(missingTablesMessage(paymentError.message));
-    }
-
-    return {
-        ...remote,
-        access_code: nextCode,
-        code_generated_at: nextCodeGeneratedAt,
-        activated_at: nextActivatedAt,
+async function blockForClockDrift(
+    local: LocalAccessRecord,
+    publicAccountId = "",
+): Promise<AccessEvaluation> {
+    const blocked: LocalAccessRecord = {
+        ...local,
+        account_active: 0,
+        blocked_reason: "clock_guard",
         updated_at: nowIso(),
     };
+    await writeLocalAccess(blocked);
+    return baseResult(
+        "blocked",
+        blocked,
+        "La fecha actual no es mayor al ultimo acceso registrado. La app quedo bloqueada por seguridad.",
+        publicAccountId,
+    );
 }
 
-async function activateRemoteAccount(remote: RemoteAccessRecord): Promise<RemoteAccessRecord> {
-    if (remote.account_active) {
-        return remote;
-    }
-
-    const activatedAt = nowIso();
-    const { error } = await supabase.from("user_payments").upsert({
-        auth_user_uuid: remote.auth_user_uuid,
-        account_active: true,
-        activated_at: activatedAt,
-    });
-
-    if (error) {
-        throw new Error(missingTablesMessage(error.message));
-    }
-
-    return {
-        ...remote,
-        account_active: true,
-        activated_at: activatedAt,
-        updated_at: activatedAt,
+async function markPaymentRequired(
+    user: User,
+    local: LocalAccessRecord | null,
+    message: string,
+): Promise<AccessEvaluation> {
+    const hint = await tryFetchRemotePaymentHint(user);
+    const nextPaymentDate = local ? getStoredNextPaymentDate(local) : "";
+    const record: LocalAccessRecord = local ?? {
+        user_id: user.id,
+        access_code: "",
+        account_active: 0,
+        last_payment_date: "",
+        next_payment_date: nextPaymentDate,
+        last_access_date: "",
+        blocked_reason: "payment_required",
+        updated_at: nowIso(),
     };
+
+    const normalized: LocalAccessRecord = {
+        ...record,
+        account_active: 0,
+        next_payment_date: nextPaymentDate,
+        blocked_reason: "payment_required",
+        updated_at: nowIso(),
+    };
+    await writeLocalAccess(normalized);
+
+    return baseResult(
+        "payment_required",
+        normalized,
+        message,
+        hint?.public_user_id ?? "",
+    );
 }
 
-async function grantAccess(user: User, remote: RemoteAccessRecord, lastAccessDate: string): Promise<AccessEvaluation> {
+async function grantStoredAccess(
+    local: LocalAccessRecord,
+    publicAccountId = "",
+): Promise<AccessEvaluation> {
     const today = todayKey();
-
-    if (lastAccessDate && today < lastAccessDate) {
-        const blocked: LocalAccessRecord = {
-            user_id: user.id,
-            access_code: remote.access_code ?? "",
-            account_active: 0,
-            last_payment_date: remote.last_payment_date ?? "",
-            last_access_date: lastAccessDate,
-            blocked_reason: "clock_guard",
-            updated_at: nowIso(),
-        };
-        await writeLocalAccess(blocked);
-        return {
-            status: "blocked",
-            publicAccountId: remote.public_user_id,
-            accessCode: blocked.access_code,
-            lastPaymentDate: blocked.last_payment_date,
-            lastAccessDate: blocked.last_access_date,
-            message: "La fecha actual no es mayor al ultimo acceso registrado. La app quedo bloqueada por seguridad.",
-        };
+    if (local.last_access_date && today < local.last_access_date) {
+        return blockForClockDrift(local, publicAccountId);
     }
 
     const granted: LocalAccessRecord = {
-        user_id: user.id,
-        access_code: remote.access_code ?? "",
+        ...local,
         account_active: 1,
-        last_payment_date: remote.last_payment_date ?? "",
-        last_access_date: today,
         blocked_reason: "",
+        last_access_date: today,
+        next_payment_date: getStoredNextPaymentDate(local),
         updated_at: nowIso(),
     };
     await writeLocalAccess(granted);
-    writeSessionGrant(user.id, today);
 
-    return {
-        status: "granted",
-        publicAccountId: remote.public_user_id,
-        accessCode: granted.access_code,
-        lastPaymentDate: granted.last_payment_date,
-        lastAccessDate: granted.last_access_date,
-        message: "Acceso validado correctamente.",
-    };
+    return baseResult(
+        "granted",
+        granted,
+        "Acceso restaurado desde la sesion local.",
+        publicAccountId,
+    );
+}
+
+function resolvePaymentAnchor(remote: RemoteAccessRecord) {
+    return remote.last_payment_date || remote.activated_at || nowIso();
 }
 
 export async function fetchRemoteAccess(user: User): Promise<RemoteAccessRecord | null> {
@@ -306,81 +276,103 @@ export async function syncRemoteAccessShell(user: User): Promise<void> {
 }
 
 export async function evaluateAccess(user: User): Promise<AccessEvaluation> {
-    await syncRemoteAccessShell(user);
-    const remote = await fetchRemoteAccess(user);
-    const today = todayKey();
     const local = await readLocalAccess(user.id);
 
-    const normalizedRemote = remote ? await reconcileRemoteAccessState(remote) : null;
+    try {
+        await syncRemoteAccessShell(user);
+        const remote = await fetchRemoteAccess(user);
+        if (remote && hasRemoteVerifiedAccess(remote)) {
+            const remoteCode = normalizeAccessCode(remote.access_code);
+            const paymentAnchor = resolvePaymentAnchor(remote);
+            const lastPaymentDate = parseDate(paymentAnchor)?.toISOString() ?? nowIso();
+            const nextPaymentDate = addOneExactYear(lastPaymentDate);
+            const granted: LocalAccessRecord = {
+                user_id: user.id,
+                access_code: remoteCode,
+                account_active: 1,
+                last_payment_date: lastPaymentDate,
+                next_payment_date: nextPaymentDate,
+                last_access_date: todayKey(),
+                blocked_reason: "",
+                updated_at: nowIso(),
+            };
+            await writeLocalAccess(granted);
 
-    if (!normalizedRemote?.account_active) {
-        const record: LocalAccessRecord = {
-            user_id: user.id,
-            access_code: normalizedRemote?.access_code ?? "",
-            account_active: 0,
-            last_payment_date: normalizedRemote?.last_payment_date ?? "",
-            last_access_date: "",
-            blocked_reason: "payment_required",
-            updated_at: nowIso(),
-        };
-        await writeLocalAccess(record);
-        return {
-            status: "payment_required",
-            publicAccountId: normalizedRemote?.public_user_id ?? "",
-            accessCode: record.access_code,
-            lastPaymentDate: record.last_payment_date,
-            lastAccessDate: record.last_access_date,
-            message: "La cuenta no tiene un pago activo registrado.",
-        };
+            return baseResult(
+                "granted",
+                granted,
+                local?.access_code
+                    ? "Acceso actualizado desde el estado remoto de esta cuenta."
+                    : "Esta cuenta ya tenia un codigo activo. Restauramos el acceso automaticamente.",
+                remote.public_user_id,
+            );
+        }
+    } catch (error) {
+        console.error("[access] failed to refresh remote access state:", error);
     }
 
-    if ((local?.access_code ?? "") !== (normalizedRemote.access_code ?? "")) {
-        return {
-            status: "payment_required",
-            publicAccountId: normalizedRemote.public_user_id,
-            accessCode: "",
-            lastPaymentDate: normalizedRemote.last_payment_date ?? "",
-            lastAccessDate: local?.last_access_date ?? "",
-            message: "Ingresa el codigo de acceso que recibiste para habilitar esta cuenta en este equipo.",
-        };
+    if (!local?.access_code) {
+        return markPaymentRequired(
+            user,
+            local,
+            "No encontramos un codigo verificado en este equipo. Inicia el flujo de pago y valida tu codigo.",
+        );
     }
 
-    const lastAccessDate = local?.last_access_date ?? "";
-    const currentSessionGrant = readSessionGrant(user.id);
-
-    if (currentSessionGrant === today && lastAccessDate === today) {
-        return {
-            status: "granted",
-            publicAccountId: normalizedRemote.public_user_id,
-            accessCode: local?.access_code ?? normalizedRemote.access_code ?? "",
-            lastPaymentDate: local?.last_payment_date ?? normalizedRemote.last_payment_date ?? "",
-            lastAccessDate,
-            message: "Acceso validado correctamente.",
-        };
+    const nextPaymentDate = getStoredNextPaymentDate(local);
+    if (isPaymentExpired(nextPaymentDate)) {
+        return markPaymentRequired(
+            user,
+            { ...local, next_payment_date: nextPaymentDate },
+            "La licencia local vencio. Debes validar nuevamente tu pago con el codigo de acceso.",
+        );
     }
 
-    return grantAccess(user, normalizedRemote, lastAccessDate);
+    return grantStoredAccess({ ...local, next_payment_date: nextPaymentDate });
 }
 
 export async function unlockWithAccessCode(user: User, code: string): Promise<AccessEvaluation> {
-    await syncRemoteAccessShell(user);
-    const remote = await fetchRemoteAccess(user);
-    const normalizedCode = code.trim();
-    const normalizedRemote = remote ? await reconcileRemoteAccessState(remote) : null;
+    const normalizedCode = normalizeAccessCode(code);
     if (!normalizedCode) {
         throw new Error("Ingresa el codigo de acceso.");
     }
-    if (!normalizedRemote) {
+
+    await syncRemoteAccessShell(user);
+    const remote = await fetchRemoteAccess(user);
+    if (!remote) {
         throw new Error("No encontramos un registro remoto para esta cuenta.");
     }
-    if (!normalizedRemote.access_code) {
+
+    const remoteCode = normalizeAccessCode(remote.access_code);
+
+    if (!remoteCode) {
         throw new Error("Todavia no hay un codigo asignado para esta cuenta.");
     }
-    if (normalizedCode !== normalizedRemote.access_code.trim()) {
+
+    if (normalizedCode !== remoteCode) {
         throw new Error("El codigo ingresado no coincide.");
     }
 
-    const activeRemote = await activateRemoteAccount(normalizedRemote);
-    const local = await readLocalAccess(user.id);
-    return grantAccess(user, activeRemote, local?.last_access_date ?? "");
+    const paymentAnchor = resolvePaymentAnchor(remote);
+    const lastPaymentDate = parseDate(paymentAnchor)?.toISOString() ?? nowIso();
+    const nextPaymentDate = addOneExactYear(lastPaymentDate);
+
+    const granted: LocalAccessRecord = {
+        user_id: user.id,
+        access_code: remoteCode,
+        account_active: 1,
+        last_payment_date: lastPaymentDate,
+        next_payment_date: nextPaymentDate,
+        last_access_date: todayKey(),
+        blocked_reason: "",
+        updated_at: nowIso(),
+    };
+    await writeLocalAccess(granted);
+
+    return baseResult(
+        "granted",
+        granted,
+        "Pago verificado correctamente y acceso guardado en este equipo.",
+        remote.public_user_id,
+    );
 }

@@ -29,6 +29,19 @@ export default function App() {
     useEffect(() => {
         if (!isTauri()) return;
 
+        const preventContextMenu = (event: MouseEvent) => {
+            event.preventDefault();
+        };
+
+        window.addEventListener("contextmenu", preventContextMenu);
+        return () => {
+            window.removeEventListener("contextmenu", preventContextMenu);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isTauri()) return;
+
         let cancelled = false;
         let unlisten: (() => void) | undefined;
         let unlistenSingleInstance: (() => void) | undefined;

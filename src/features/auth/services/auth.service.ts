@@ -2,6 +2,7 @@ import * as googleProvider from "../providers/google.provider";
 import * as microsoftProvider from "../providers/microsoft.provider";
 import * as oauthProvider from "../providers/oauth.provider";
 import * as passwordProvider from "../providers/password.provider";
+import * as authSessionRepo from "../repositories/auth-session.repository";
 import * as userRepo from "../repositories/auth-user.repository";
 import { useAccessStore } from "../../access/store";
 import { useAuthStore } from "../store";
@@ -14,7 +15,8 @@ type OAuthProgressReporter = (step: string) => void;
 const SOCIAL_PROVIDER_KEY = "grading.social_provider";
 const PENDING_DEEP_LINK_KEY = "grading.pending_deep_link";
 
-function setAuthenticatedUser(user: User) {
+async function setAuthenticatedUser(user: User) {
+    await authSessionRepo.setActiveSessionUserId(user.id);
     useAuthStore.getState().setAuth(user);
 }
 
@@ -80,7 +82,7 @@ export async function loginWithCredentials(
         return "No fue posible completar el inicio de sesion.";
     }
 
-    setAuthenticatedUser(user);
+    await setAuthenticatedUser(user);
     return null;
 }
 
@@ -113,7 +115,7 @@ export async function registerWithCredentials(
         if (!user) {
             return "No fue posible completar el registro.";
         }
-        setAuthenticatedUser(user);
+        await setAuthenticatedUser(user);
         return null;
     }
 
@@ -166,7 +168,7 @@ export async function completeOAuthLogin(
         }
 
         reportOAuthProgress(onProgress, "Activando sesion local...");
-        setAuthenticatedUser(user);
+        await setAuthenticatedUser(user);
         reportOAuthProgress(onProgress, "Abriendo la app...");
         clearTransientAuthState();
         return null;
@@ -187,7 +189,7 @@ export async function completeEmailConfirmation(sourceUrl?: string): Promise<str
         return "No fue posible confirmar el registro.";
     }
 
-    setAuthenticatedUser(user);
+    await setAuthenticatedUser(user);
     return null;
 }
 
@@ -197,7 +199,7 @@ export async function refreshUser(): Promise<void> {
 
     const next = await authUserService.fetchUserById(current.id);
     if (next) {
-        setAuthenticatedUser(next);
+        await setAuthenticatedUser(next);
     }
 }
 
@@ -208,7 +210,7 @@ export async function updateProfile(name: string, avatarData?: string): Promise<
     const next = await authUserService.updateProfile(current.id, name, avatarData);
     if (!next) return "No fue posible actualizar el perfil.";
 
-    setAuthenticatedUser(next);
+    await setAuthenticatedUser(next);
     return null;
 }
 
@@ -242,6 +244,7 @@ export async function logout(): Promise<void> {
     try {
         await oauthProvider.signOutProvider();
     } finally {
+        await authSessionRepo.clearActiveSession();
         clearTransientAuthState();
         useAccessStore.getState().reset();
         useAuthStore.getState().clearAuth();

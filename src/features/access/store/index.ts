@@ -10,6 +10,7 @@ type AccessState = {
     publicAccountId: string;
     accessCode: string;
     lastPaymentDate: string;
+    nextPaymentDate: string;
     lastAccessDate: string;
     error: string;
     accessCodeError: string;
@@ -25,6 +26,7 @@ const initialState = {
     publicAccountId: "",
     accessCode: "",
     lastPaymentDate: "",
+    nextPaymentDate: "",
     lastAccessDate: "",
     error: "",
     accessCodeError: "",
@@ -44,6 +46,7 @@ export const useAccessStore = create<AccessState>((set) => ({
                 publicAccountId: result.publicAccountId,
                 accessCode: result.accessCode,
                 lastPaymentDate: result.lastPaymentDate,
+                nextPaymentDate: result.nextPaymentDate,
                 lastAccessDate: result.lastAccessDate,
                 error: "",
                 accessCodeError: "",
@@ -57,6 +60,7 @@ export const useAccessStore = create<AccessState>((set) => ({
                 publicAccountId: "",
                 accessCode: "",
                 lastPaymentDate: "",
+                nextPaymentDate: "",
                 lastAccessDate: "",
                 error: "",
                 accessCodeError: "",
@@ -74,6 +78,7 @@ export const useAccessStore = create<AccessState>((set) => ({
                 publicAccountId: result.publicAccountId,
                 accessCode: result.accessCode,
                 lastPaymentDate: result.lastPaymentDate,
+                nextPaymentDate: result.nextPaymentDate,
                 lastAccessDate: result.lastAccessDate,
                 error: "",
                 accessCodeError: "",
