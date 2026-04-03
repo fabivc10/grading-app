@@ -16,7 +16,7 @@
 }
 .addBtn:hover  { background: var(--primary-action-bg-hover); }
 .addBtn:active { transform: scale(0.97); }
-.addBtn svg    { width: 15px; height: 15px; }
+.addBtn svg    { width: var(--primary-action-icon-size); height: var(--primary-action-icon-size); }
 
 /* ── Toolbar ── */
 .toolbar {

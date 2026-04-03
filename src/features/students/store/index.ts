@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Estudiante, EstudianteFormData } from "../types";
+import type { AsigRef, Estudiante, EstudianteFormData, ImportedStudentRow } from "../types";
 import * as svc from "../services/students.service";
 import { useEvaluacionesStore } from "../../evaluations/store";
 
@@ -15,6 +15,14 @@ type EstudiantesState = {
     addEstudiante: (institutionId: number, data: EstudianteFormData) => Promise<void>;
     updateEstudiante: (id: string, data: EstudianteFormData) => Promise<void>;
     deleteEstudiante: (id: string) => Promise<void>;
+    deleteEstudiantes: (ids: string[]) => Promise<void>;
+    assignAsignaturaToEstudiantes: (institutionId: number, ids: string[], asignaturaId: string) => Promise<void>;
+    importEstudiantes: (
+        institutionId: number,
+        rows: ImportedStudentRow[],
+        asignaturas: AsigRef[],
+        defaultLecciones: number
+    ) => Promise<void>;
 };
 
 export const useEstudiantesStore = create<EstudiantesState>()((set) => ({
@@ -58,5 +66,35 @@ export const useEstudiantesStore = create<EstudiantesState>()((set) => ({
         }
 
         set((s) => ({ estudiantes: s.estudiantes.filter((e) => e.id !== id) }));
+    },
+
+    deleteEstudiantes: async (ids) => {
+        if (!ids.length) return;
+        await svc.deleteEstudiantes(ids);
+        const institutionId = useEvaluacionesStore.getState().institutionId;
+        if (institutionId) {
+            const estudiantes = await svc.fetchEstudiantes(institutionId);
+            await reloadEvaluacionesIfNeeded(institutionId);
+            set({ estudiantes });
+            return;
+        }
+
+        const selected = new Set(ids);
+        set((s) => ({ estudiantes: s.estudiantes.filter((e) => !selected.has(e.id)) }));
+    },
+
+    assignAsignaturaToEstudiantes: async (institutionId, ids, asignaturaId) => {
+        if (!ids.length || !asignaturaId) return;
+        await svc.assignAsignaturaToEstudiantes(ids, asignaturaId);
+        const estudiantes = await svc.fetchEstudiantes(institutionId);
+        await reloadEvaluacionesIfNeeded(institutionId);
+        set({ estudiantes });
+    },
+
+    importEstudiantes: async (institutionId, rows, asignaturas, defaultLecciones) => {
+        await svc.importEstudiantesFromRows(institutionId, rows, asignaturas, defaultLecciones);
+        const estudiantes = await svc.fetchEstudiantes(institutionId);
+        await reloadEvaluacionesIfNeeded(institutionId);
+        set({ estudiantes });
     },
 }));

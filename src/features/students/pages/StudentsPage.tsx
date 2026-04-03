@@ -1,9 +1,11 @@
-import { useState, useMemo, FormEvent } from "react";
+import { useEffect, useRef, useState, useMemo, FormEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSearchParams } from "react-router-dom";
 import { useEstudiantesStore } from "../store";
 import { useAsignaturasStore } from "../../subjects/store";
 import { useInstitutionStore } from "../../institution/store";
-import type { Adecuacion, AsigRef, Estudiante, EstudianteFormData, Tutor } from "../types";
+import { useConfiguracionStore } from "../../settings/store";
+import type { Adecuacion, AsigRef, Estudiante, EstudianteFormData, ImportedStudentRow, Tutor } from "../types";
 import { PlusIcon, EditIcon, TrashIcon, FilterIcon, SortIcon, ChevronDownIcon } from "../../../shared/ui/icons";
 import { SearchInput } from "../../../shared/ui/SearchInput";
 import { Modal } from "../../../shared/ui/Modal";
@@ -11,7 +13,7 @@ import { EmptyState } from "../../../shared/ui/EmptyState";
 import { FormField } from "../../../shared/ui/FormField";
 import styles from "./StudentsPage.module.css";
 
-// â”€â”€â”€ AdecuaciÃ³n config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ AdecuaciÃƒÂ³n config Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const ADE_CONFIG: Record<Adecuacion, { label: string; cls: string }> = {
     acceso:          { label: "Acceso",          cls: styles.adeAcceso },
     significativa:   { label: "Significativa",   cls: styles.adeSignificativa },
@@ -23,7 +25,7 @@ const BLANK_TUTOR: Tutor = { nombre: "", telefono: "" };
 
 const BLANK: EstudianteFormData = {
     nombreCompleto: "", cedula: "",
-    fechaNacimiento: "", telefonoEstudiante: "",
+    fechaNacimiento: "",
     tutores: [{ ...BLANK_TUTOR }],
     adecuacion: "no_tiene", asignaturas: [],
 };
@@ -39,14 +41,14 @@ function calcAge(fechaNacimiento: string): number | null {
     return age;
 }
 
-// "2009-05-23" â†’ "23/05/2009"
+// "2009-05-23" Ã¢â€ â€™ "23/05/2009"
 function isoToDisplay(iso: string): string {
     if (!iso) return "";
     const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
 }
 
-// "23/05/2009" â†’ "2009-05-23" (returns "" if incomplete)
+// "23/05/2009" Ã¢â€ â€™ "2009-05-23" (returns "" if incomplete)
 function displayToIso(text: string): string {
     const parts = text.split("/");
     if (parts.length !== 3) return "";
@@ -82,19 +84,78 @@ function formatCedula(next: string): string {
     return digits.slice(0, 1) + "-" + digits.slice(1, 5) + "-" + digits.slice(5);
 }
 
-// Allow only phone-valid characters: digits, +, spaces, -, (, )
-function isValidPhone(p: string): boolean {
-    return !p || /^[+\d\s\-()\.\,]+$/.test(p.trim());
+function normalizeSearchText(value: string): string {
+    return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
 }
 
-// â”€â”€â”€ AdeBadge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function formatEightDigitPhone(value: string): string {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 8) return "";
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+}
+
+function isValidPhone(p: string): boolean {
+    return !p.trim() || p.replace(/\D/g, "").length === 8;
+}
+
+function formatUnknownError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    if (error && typeof error === "object") {
+        const withMessage = error as { message?: unknown; error?: unknown };
+        if (typeof withMessage.message === "string") return withMessage.message;
+        if (typeof withMessage.error === "string") return withMessage.error;
+        try {
+            return JSON.stringify(error);
+        } catch {
+            return String(error);
+        }
+    }
+    return "No se pudo completar la operacion.";
+}
+
+async function parseExcelFile(file: File): Promise<ImportedStudentRow[]> {
+    console.log("[students/import] Leyendo archivo", {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+    });
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer el archivo."));
+        reader.readAsDataURL(file);
+    });
+
+    try {
+        const rows = await invoke<ImportedStudentRow[]>("parse_students_excel", {
+            dataUrl,
+            filename: file.name,
+        });
+        console.log("[students/import] Filas parseadas", {
+            count: rows.length,
+            preview: rows.slice(0, 5),
+        });
+        return rows;
+    } catch (error) {
+        console.error("[students/import] Fallo al parsear Excel", error);
+        throw error;
+    }
+}
+
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ AdeBadge Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function AdeBadge({ value }: { value: Adecuacion }) {
     if (value === "no_tiene") return null;
     const cfg = ADE_CONFIG[value];
     return <span className={`${styles.adeBadge} ${cfg.cls}`}>{cfg.label}</span>;
 }
 
-// â”€â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Modal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function EstudianteModal({
     initial,
     asigCatalogue,
@@ -113,7 +174,7 @@ function EstudianteModal({
     const [dateText, setDateText] = useState(() => isoToDisplay(initial.fechaNacimiento));
     const isEdit = Boolean(initial.id);
 
-    const setField = (key: "nombreCompleto" | "telefonoEstudiante" | "adecuacion") => (
+    const setField = (key: "nombreCompleto" | "adecuacion") => (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
     ) => {
         setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -154,11 +215,9 @@ function EstudianteModal({
     };
 
     const dateOk  = isValidBirthDate(form.fechaNacimiento);
-    const phoneOk = isValidPhone(form.telefonoEstudiante)
-        && form.tutores.every((t) => isValidPhone(t.telefono));
     const valid = form.nombreCompleto.trim() !== ""
         && form.cedula.trim() !== ""
-        && dateOk && phoneOk;
+        && dateOk;
 
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -169,7 +228,15 @@ function EstudianteModal({
         setSaving(true);
         setSaveError(null);
         try {
-            await onSave(form, initial.id);
+            await onSave({
+                ...form,
+                nombreCompleto: form.nombreCompleto.normalize("NFC"),
+                tutores: form.tutores.map((tutor) => ({
+                    ...tutor,
+                    nombre: tutor.nombre.normalize("NFC"),
+                    telefono: formatEightDigitPhone(tutor.telefono),
+                })),
+            }, initial.id);
         } catch (err) {
             setSaveError(String(err));
             console.error(err);
@@ -192,60 +259,55 @@ function EstudianteModal({
         <Modal open onClose={onClose} title={isEdit ? "Editar estudiante" : "Nuevo estudiante"} footer={footer}>
             <form id="estudiante-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
                 <FormField label="Nombre completo" required>
-                    <input className={styles.formInput} type="text" placeholder="Ej: Ana García López" value={form.nombreCompleto} onChange={setField("nombreCompleto")} autoFocus required />
+                    <input className={styles.formInput} type="text" placeholder={"Ej: Ana Garc\u00eda L\u00f3pez"} value={form.nombreCompleto} onChange={setField("nombreCompleto")} autoFocus required />
                 </FormField>
 
                 <div className={styles.row2}>
-                    <FormField label="Cédula" required>
+                    <FormField label={"C\u00e9dula"} required>
                         <input className={styles.formInput} type="text" placeholder="1-2345-6789" value={form.cedula} onChange={handleCedulaChange} maxLength={11} required />
                     </FormField>
-                    <FormField label={`Fecha de nacimiento${previewAge !== null ? ` · ${previewAge} years` : ""}${form.fechaNacimiento && !dateOk ? " · fecha inválida" : ""}`}>
+                    <FormField label={`Fecha de nacimiento${previewAge !== null ? ` \u00b7 ${previewAge} years` : ""}${form.fechaNacimiento && !dateOk ? " \u00b7 fecha inv\u00e1lida" : ""}`}>
                         <input className={`${styles.formInput}${form.fechaNacimiento && !dateOk ? ` ${styles.inputError}` : ""}`} type="text" placeholder="dd/mm/aaaa" value={dateText} onChange={handleDateChange} maxLength={10} />
                     </FormField>
                 </div>
 
-                <div className={styles.row2}>
-                    <FormField label="Adecuación curricular">
-                        <select className={styles.formInput} value={form.adecuacion} onChange={setField("adecuacion")}>
-                            <option value="no_tiene">No tiene</option>
-                            <option value="acceso">Acceso</option>
-                            <option value="significativa">Significativa</option>
-                            <option value="no_significativa">No significativa</option>
-                        </select>
-                    </FormField>
-                    <FormField label="Teléfono del estudiante (si aplica)">
-                        <input className={`${styles.formInput}${form.telefonoEstudiante && !isValidPhone(form.telefonoEstudiante) ? ` ${styles.inputError}` : ""}`} type="tel" placeholder="+506 0000-0000" value={form.telefonoEstudiante} onChange={setField("telefonoEstudiante")} />
-                    </FormField>
-                </div>
+                <FormField label={"Adecuaci\u00f3n curricular"}>
+                    <select className={styles.formInput} value={form.adecuacion} onChange={setField("adecuacion")}>
+                        <option value="no_tiene">No tiene</option>
+                        <option value="acceso">Acceso</option>
+                        <option value="significativa">Significativa</option>
+                        <option value="no_significativa">No significativa</option>
+                    </select>
+                </FormField>
 
-                {/* â”€â”€ Tutores â”€â”€ */}
+                {/* Ã¢â€â‚¬Ã¢â€â‚¬ Tutores Ã¢â€â‚¬Ã¢â€â‚¬ */}
                 <div className={styles.tutoresSection}>
                     <p className={styles.sectionLabel}>Tutor legal / Contacto de emergencia (opcional)</p>
 
-                    {/* Tutor 1 â€” opcional */}
+                    {/* Tutor 1 Ã¢â‚¬â€ opcional */}
                     <div className={styles.tutorRow}>
                         <FormField label="Nombre del tutor">
-                            <input className={styles.formInput} type="text" placeholder="Ej: María López" value={form.tutores[0].nombre} onChange={(e) => setTutor(0, "nombre", e.target.value)} />
+                            <input className={styles.formInput} type="text" placeholder={"Ej: Mar\u00eda L\u00f3pez"} value={form.tutores[0].nombre} onChange={(e) => setTutor(0, "nombre", e.target.value)} />
                         </FormField>
-                        <FormField label="Teléfono">
+                        <FormField label={"Tel\u00e9fono"}>
                             <input className={`${styles.formInput}${form.tutores[0].telefono && !isValidPhone(form.tutores[0].telefono) ? ` ${styles.inputError}` : ""}`} type="tel" placeholder="+506 0000-0000" value={form.tutores[0].telefono} onChange={(e) => setTutor(0, "telefono", e.target.value)} />
                         </FormField>
                     </div>
 
-                    {/* Tutor 2 â€” opcional */}
+                    {/* Tutor 2 Ã¢â‚¬â€ opcional */}
                     {form.tutores.length >= 2 ? (
                         <div className={styles.tutorRow}>
-                            <FormField label="Nombre del 2° contacto">
-                                <input className={styles.formInput} type="text" placeholder="Ej: Carlos López" value={form.tutores[1].nombre} onChange={(e) => setTutor(1, "nombre", e.target.value)} />
+                            <FormField label={"Nombre del 2\u00b0 contacto"}>
+                                <input className={styles.formInput} type="text" placeholder={"Ej: Carlos L\u00f3pez"} value={form.tutores[1].nombre} onChange={(e) => setTutor(1, "nombre", e.target.value)} />
                             </FormField>
-                            <FormField label="Teléfono">
+                            <FormField label={"Tel\u00e9fono"}>
                                 <input className={`${styles.formInput}${form.tutores[1].telefono && !isValidPhone(form.tutores[1].telefono) ? ` ${styles.inputError}` : ""}`} type="tel" placeholder="+506 0000-0000" value={form.tutores[1].telefono} onChange={(e) => setTutor(1, "telefono", e.target.value)} />
                             </FormField>
-                            <button type="button" className={styles.removeTutorBtn} onClick={removeTutor} title="Eliminar 2° contacto">×</button>
+                            <button type="button" className={styles.removeTutorBtn} onClick={removeTutor} title={"Eliminar 2\u00b0 contacto"}>{"\u00d7"}</button>
                         </div>
                     ) : (
                         <button type="button" className={styles.addTutorBtn} onClick={addTutor}>
-                            + Agregar 2° contacto de emergencia
+                            + Agregar 2\u00b0 contacto de emergencia
                         </button>
                     )}
                 </div>
@@ -265,7 +327,7 @@ function EstudianteModal({
                                     />
                                     <span className={styles.asigOptionLabel}>
                                         <strong>{asig.nombre}</strong>
-                                        <span>· {asig.grupo}-{asig.seccion} · {asig.year}</span>
+                                        <span>{` \u00b7 ${asig.grupo}-${asig.seccion} \u00b7 ${asig.year}`}</span>
                                     </span>
                                 </label>
                             ))
@@ -277,37 +339,105 @@ function EstudianteModal({
     );
 }
 
-// â”€â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Card Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+function BulkAssignModal({
+    selectedCount,
+    asignaturas,
+    onSave,
+    onClose,
+}: {
+    selectedCount: number;
+    asignaturas: AsigRef[];
+    onSave: (asignaturaId: string) => Promise<void>;
+    onClose: () => void;
+}) {
+    const [asignaturaId, setAsignaturaId] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const footer = (
+        <>
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
+            <button
+                type="button"
+                className={styles.saveBtn}
+                disabled={!asignaturaId || saving}
+                onClick={async () => {
+                    if (!asignaturaId || saving) return;
+                    setSaving(true);
+                    try {
+                        await onSave(asignaturaId);
+                    } finally {
+                        setSaving(false);
+                    }
+                }}
+            >
+                {saving ? "Guardando..." : "A\u00f1adir asignatura"}
+            </button>
+        </>
+    );
+
+    return (
+        <Modal open onClose={onClose} title="Asignar asignatura" footer={footer}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+                <p className={styles.sectionLabel}>
+                    {"Se a\u00f1adir\u00e1 una asignatura a "}{selectedCount}{" estudiante"}{selectedCount !== 1 ? "s" : ""}{"."}
+                </p>
+                <FormField label="Asignatura" required>
+                    <select
+                        className={styles.formInput}
+                        value={asignaturaId}
+                        onChange={(e) => setAsignaturaId(e.target.value)}
+                    >
+                        <option value="">Selecciona una asignatura</option>
+                        {asignaturas.map((asig) => (
+                            <option key={asig.id} value={asig.id}>
+                                {`${asig.nombre} \u00b7 ${asig.grupo}-${asig.seccion}`}
+                            </option>
+                        ))}
+                    </select>
+                </FormField>
+            </div>
+        </Modal>
+    );
+}
+
 function EstudianteCard({
     est,
+    selected,
     onEdit,
     onDelete,
+    onToggleSelect,
 }: {
     est: Estudiante;
+    selected: boolean;
     onEdit: (e: Estudiante) => void;
     onDelete: (id: string) => void;
+    onToggleSelect: (id: string) => void;
 }) {
     const [confirming, setConfirming] = useState(false);
     const visible = est.asignaturas.slice(0, 2);
     const extra   = est.asignaturas.length - visible.length;
+    const tutorPhone = formatEightDigitPhone(est.tutores[0]?.telefono ?? "");
 
     return (
         <tr>
+            <td className={styles.tdCheck}>
+                <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => onToggleSelect(est.id)}
+                    aria-label={`Seleccionar a ${est.nombreCompleto}`}
+                />
+            </td>
             <td className={styles.tdName}>{est.nombreCompleto}</td>
             <td className={styles.tdMono}>{est.cedula}</td>
             <td>{calcAge(est.fechaNacimiento) ?? "-"}</td>
-            <td>
-                {est.tutores[0] ? (
-                    <span title={est.tutores[0].nombre}>
-                        {est.tutores[0].telefono || est.tutores[0].nombre || "-"}
-                    </span>
-                ) : "-"}
-            </td>
+            <td>{tutorPhone}</td>
             <td><AdeBadge value={est.adecuacion} /></td>
             <td>
                 <div className={styles.asigChips}>
                     {visible.map((a) => (
-                        <span key={a.id} className={styles.asigChip} title={`${a.nombre} · Grupo ${a.grupo}-${a.seccion} · ${a.year}`}>
+                        <span key={a.id} className={styles.asigChip} title={`${a.nombre} \u00b7 Grupo ${a.grupo}-${a.seccion} \u00b7 ${a.year}`}>
                             {a.nombre} {a.grupo}-{a.seccion}
                         </span>
                     ))}
@@ -318,8 +448,8 @@ function EstudianteCard({
             <td>
                 {confirming ? (
                     <div className={styles.deleteConfirm}>
-                        <span>¿Eliminar?</span>
-                        <button className={styles.confirmYes} onClick={() => onDelete(est.id)}>Sí</button>
+                        <span>{"\u00bfEliminar?"}</span>
+                        <button className={styles.confirmYes} onClick={() => onDelete(est.id)}>{"S\u00ed"}</button>
                         <button className={styles.confirmNo}  onClick={() => setConfirming(false)}>No</button>
                     </div>
                 ) : (
@@ -333,12 +463,24 @@ function EstudianteCard({
     );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Page Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function StudentsPage() {
-    const { estudiantes, addEstudiante, updateEstudiante, deleteEstudiante } = useEstudiantesStore();
+    const {
+        estudiantes,
+        addEstudiante,
+        updateEstudiante,
+        deleteEstudiante,
+        deleteEstudiantes,
+        assignAsignaturaToEstudiantes,
+        importEstudiantes,
+    } = useEstudiantesStore();
     const asignaturas   = useAsignaturasStore((s) => s.asignaturas);
+    const loadAsignaturas = useAsignaturasStore((s) => s.load);
     const institutionId = useInstitutionStore((s) => s.currentId);
+    const defaultLecciones = useConfiguracionStore((s) => s.defaultLecciones);
     const asigCatalogue: AsigRef[] = asignaturas.map((a) => ({ id: a.id, nombre: a.nombre, grupo: Math.trunc(a.grupo), seccion: Math.trunc(a.seccion), year: a.year }));
+    const importInputRef = useRef<HTMLInputElement | null>(null);
+    const selectAllRef = useRef<HTMLInputElement | null>(null);
 
     const [modal, setModal] = useState<(EstudianteFormData & { id?: string }) | null>(null);
     const [searchParams] = useSearchParams();
@@ -351,6 +493,10 @@ export function StudentsPage() {
     const [showSort,     setShowSort]    = useState(false);
     const [sortKey,  setSortKey]  = useState<"nombre" | "edad" | "adecuacion">("nombre");
     const [sortDir,  setSortDir]  = useState<"asc" | "desc">("asc");
+    const [importing, setImporting] = useState(false);
+    const [importMessage, setImportMessage] = useState("");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [showAssignModal, setShowAssignModal] = useState(false);
 
     const grupos   = useMemo(() => [...new Set(asignaturas.map((a) => String(Math.trunc(a.grupo))))].sort((a, b) => Number(a) - Number(b)), [asignaturas]);
     const secciones = useMemo(() => [...new Set(asignaturas.map((a) => String(Math.trunc(a.seccion))))].sort((a, b) => Number(a) - Number(b)), [asignaturas]);
@@ -358,9 +504,9 @@ export function StudentsPage() {
     const activeFilterCount = [filterAde, filterAsig, filterGrupo, filterSeccion].filter(Boolean).length;
 
     const filtered = useMemo(() => {
-        const q = search.toLowerCase();
+        const q = normalizeSearchText(search);
         const list = estudiantes.filter((e) => {
-            const matchSearch = !q || e.nombreCompleto.toLowerCase().includes(q) || e.cedula.includes(q);
+            const matchSearch = !q || normalizeSearchText(e.nombreCompleto).includes(q) || e.cedula.includes(q);
             const matchAde    = !filterAde    || e.adecuacion === filterAde;
             const matchAsig   = !filterAsig   || e.asignaturas.some((a) => a.id === filterAsig);
             const matchGrupo  = !filterGrupo  || e.asignaturas.some((a) => String(a.grupo) === filterGrupo);
@@ -369,11 +515,28 @@ export function StudentsPage() {
         });
         return [...list].sort((a, b) => {
             const mul = sortDir === "asc" ? 1 : -1;
-            if (sortKey === "nombre") return mul * a.nombreCompleto.localeCompare(b.nombreCompleto);
+            if (sortKey === "nombre") return mul * a.nombreCompleto.localeCompare(b.nombreCompleto, "es", { sensitivity: "base" });
             if (sortKey === "edad")   return mul * ((calcAge(a.fechaNacimiento) ?? 0) - (calcAge(b.fechaNacimiento) ?? 0));
-            return mul * a.adecuacion.localeCompare(b.adecuacion);
+            return mul * a.adecuacion.localeCompare(b.adecuacion, "es", { sensitivity: "base" });
         });
     }, [estudiantes, search, filterAde, filterAsig, filterGrupo, filterSeccion, sortKey, sortDir]);
+
+    const filteredIds = useMemo(() => filtered.map((student) => student.id), [filtered]);
+    const selectedVisibleCount = useMemo(
+        () => filteredIds.filter((id) => selectedIds.includes(id)).length,
+        [filteredIds, selectedIds]
+    );
+    const allVisibleSelected = filteredIds.length > 0 && selectedVisibleCount === filteredIds.length;
+    const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < filteredIds.length;
+
+    useEffect(() => {
+        setSelectedIds((current) => current.filter((id) => estudiantes.some((student) => student.id === id)));
+    }, [estudiantes]);
+
+    useEffect(() => {
+        if (!selectAllRef.current) return;
+        selectAllRef.current.indeterminate = someVisibleSelected;
+    }, [someVisibleSelected]);
 
     const SORT_LABELS: Record<"nombre" | "edad" | "adecuacion", string> = {
         nombre:    "Alfabéticamente",
@@ -394,6 +557,65 @@ export function StudentsPage() {
     };
 
     const handleDelete = (id: string) => deleteEstudiante(id);
+    const handleToggleSelect = (id: string) => {
+        setSelectedIds((current) =>
+            current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+        );
+    };
+    const handleToggleSelectAll = () => {
+        setSelectedIds((current) => {
+            if (allVisibleSelected) {
+                return current.filter((id) => !filteredIds.includes(id));
+            }
+            return [...new Set([...current, ...filteredIds])];
+        });
+    };
+    const handleDeleteSelected = async () => {
+        if (!selectedIds.length) return;
+        const confirmed = window.confirm(`\u00bfEliminar ${selectedIds.length} estudiante(s) seleccionados?`);
+        if (!confirmed) return;
+        await deleteEstudiantes(selectedIds);
+        setSelectedIds([]);
+    };
+    const handleAssignSelected = async (asignaturaId: string) => {
+        await assignAsignaturaToEstudiantes(institutionId, selectedIds, asignaturaId);
+        setShowAssignModal(false);
+        setSelectedIds([]);
+    };
+
+    const handleImportClick = () => {
+        setImportMessage("");
+        importInputRef.current?.click();
+    };
+
+    const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file || importing) return;
+
+        setImporting(true);
+        setImportMessage("");
+        try {
+            const rows = await parseExcelFile(file);
+            if (rows.length === 0) {
+                console.warn("[students/import] El archivo se pudo leer, pero no produjo filas importables.");
+                setImportMessage("El archivo se leyo, pero no se encontraron estudiantes importables.");
+                return;
+            }
+            await importEstudiantes(institutionId, rows, asigCatalogue, defaultLecciones);
+            await loadAsignaturas(institutionId);
+            console.log("[students/import] Importacion completada", {
+                count: rows.length,
+                institutionId,
+            });
+            setImportMessage("");
+        } catch (error) {
+            console.error("[students/import] Error final en importacion", error);
+            setImportMessage(formatUnknownError(error));
+        } finally {
+            setImporting(false);
+        }
+    };
 
     const clearFilters = () => { setFilterAde(""); setFilterAsig(""); setFilterGrupo(""); setFilterSeccion(""); };
 
@@ -407,15 +629,49 @@ export function StudentsPage() {
                             ? `${filtered.length} de ${estudiantes.length} estudiantes`
                             : `${estudiantes.length} estudiante${estudiantes.length !== 1 ? "s" : ""} registrado${estudiantes.length !== 1 ? "s" : ""}`}
                     </p>
+                    {importMessage && <p>{importMessage}</p>}
                 </div>
-                <button className={styles.addBtn} onClick={openCreate}>
-                    <PlusIcon /> Nuevo estudiante
-                </button>
+                <div className={styles.headerActions}>
+                    <div className={styles.headerUtilityActions}>
+                    <button type="button" className={styles.filterToggleBtn} onClick={handleImportClick} disabled={importing}>
+                        {importing ? "Importando..." : "Importar Excel"}
+                    </button>
+                    {selectedIds.length > 0 && (
+                    <button
+                        type="button"
+                        className={styles.filterToggleBtn}
+                        onClick={() => setShowAssignModal(true)}
+                        disabled={asigCatalogue.length === 0}
+                    >
+                        {"A\u00f1adir asignatura ("}{selectedIds.length}{")"}
+                    </button>
+                    )}
+                    {selectedIds.length > 0 && (
+                    <button
+                        type="button"
+                        className={styles.clearAll}
+                        onClick={handleDeleteSelected}
+                    >
+                        Eliminar seleccionados ({selectedIds.length})
+                    </button>
+                    )}
+                    </div>
+                    <button className={styles.addBtn} onClick={openCreate}>
+                        <PlusIcon /> Nuevo estudiante
+                    </button>
+                </div>
             </div>
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx,.xlsm,.xltx,.xltm"
+                style={{ display: "none" }}
+                onChange={handleImportFile}
+            />
 
-            {/* â”€â”€ Toolbar â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Toolbar Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className={styles.toolbar}>
-                <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o cédula..." width={240} />
+                <SearchInput value={search} onChange={setSearch} placeholder={"Buscar por nombre o c\u00e9dula..."} width={240} />
 
                 {/* Filtrar */}
                 <div className={styles.filterBtnWrap}>
@@ -430,20 +686,20 @@ export function StudentsPage() {
                             <div className={styles.filterBackdrop} onClick={() => setShowFilters(false)} />
                             <div className={styles.filterPopover}>
                                 <div className={styles.filterPopoverRow}>
-                                    <label>Adecuación</label>
+                                    <label>{"Adecuaci\u00f3n"}</label>
                                     <select value={filterAde} onChange={(e) => setFilterAde(e.target.value as Adecuacion | "")}>
                                         <option value="">Todas</option>
                                         <option value="acceso">Acceso</option>
                                         <option value="significativa">Significativa</option>
                                         <option value="no_significativa">No significativa</option>
-                                        <option value="no_tiene">Sin adecuación</option>
+                                        <option value="no_tiene">{"Sin adecuaci\u00f3n"}</option>
                                     </select>
                                 </div>
                                 <div className={styles.filterPopoverRow}>
                                     <label>Asignatura</label>
                                     <select value={filterAsig} onChange={(e) => setFilterAsig(e.target.value)}>
                                         <option value="">Todas</option>
-                                        {asignaturas.map((a) => <option key={a.id} value={a.id}>{a.nombre} · {a.grupo}</option>)}
+                                        {asignaturas.map((a) => <option key={a.id} value={a.id}>{`${a.nombre} \u00b7 ${a.grupo}`}</option>)}
                                     </select>
                                 </div>
                                 <div className={styles.filterPopoverRow}>
@@ -454,7 +710,7 @@ export function StudentsPage() {
                                     </select>
                                 </div>
                                 <div className={styles.filterPopoverRow}>
-                                    <label>Sección</label>
+                                    <label>{"Secci\u00f3n"}</label>
                                     <select value={filterSeccion} onChange={(e) => setFilterSeccion(e.target.value)}>
                                         <option value="">Todas</option>
                                         {secciones.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -499,12 +755,22 @@ export function StudentsPage() {
                 </div>
             </div>
 
-            {/* â”€â”€ Table â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Table Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className={styles.tableWrap}>
                 <div className={styles.tableScroll}>
                     <table>
                         <thead>
                             <tr>
+                                <th className={styles.thCheck}>
+                                    <input
+                                        ref={selectAllRef}
+                                        type="checkbox"
+                                        checked={allVisibleSelected}
+                                        onChange={handleToggleSelectAll}
+                                        disabled={filtered.length === 0}
+                                        aria-label="Seleccionar todos los estudiantes visibles"
+                                    />
+                                </th>
                                 <th>Nombre completo</th>
                                 <th>Cédula</th>
                                 <th>Edad</th>
@@ -517,7 +783,7 @@ export function StudentsPage() {
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7}>
+                                    <td colSpan={8}>
                                         <EmptyState
                                             title={estudiantes.length === 0 ? "Sin estudiantes registrados" : "Sin resultados"}
                                         />
@@ -525,7 +791,14 @@ export function StudentsPage() {
                                 </tr>
                             ) : (
                                 filtered.map((e) => (
-                                    <EstudianteCard key={e.id} est={e} onEdit={openEdit} onDelete={handleDelete} />
+                                    <EstudianteCard
+                                        key={e.id}
+                                        est={e}
+                                        selected={selectedIds.includes(e.id)}
+                                        onEdit={openEdit}
+                                        onDelete={handleDelete}
+                                        onToggleSelect={handleToggleSelect}
+                                    />
                                 ))
                             )}
                         </tbody>
@@ -541,7 +814,16 @@ export function StudentsPage() {
                     onClose={() => setModal(null)}
                 />
             )}
+            {showAssignModal && (
+                <BulkAssignModal
+                    selectedCount={selectedIds.length}
+                    asignaturas={asigCatalogue}
+                    onSave={handleAssignSelected}
+                    onClose={() => setShowAssignModal(false)}
+                />
+            )}
         </>
     );
 }
+
 

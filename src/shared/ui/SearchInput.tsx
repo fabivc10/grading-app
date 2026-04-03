@@ -1,4 +1,4 @@
-import { SearchIcon } from "./icons";
+import { CloseIcon, SearchIcon } from "./icons";
 import styles from "./SearchInput.module.css";
 
 interface SearchInputProps {
@@ -22,9 +22,10 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
                 onChange={(e) => onChange(e.target.value)}
             />
             {value.length > 0 && (
-                <button className={styles.clear} type="button" onClick={() => onChange("")}>×</button>
+                <button className={styles.clear} type="button" onClick={() => onChange("")} aria-label={"Limpiar b\u00fasqueda"}>
+                    <CloseIcon />
+                </button>
             )}
         </div>
     );
 }
-

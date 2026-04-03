@@ -97,11 +97,12 @@
     --toolbar-control-border: var(--input-bd);
     --toolbar-control-border-hover: var(--bd-2);
 
-    --primary-action-padding-y: 0.525rem;
-    --primary-action-padding-x: 0.9rem;
+    --primary-action-padding-y: 0.48rem;
+    --primary-action-padding-x: 0.8rem;
     --primary-action-radius: var(--radius-md);
-    --primary-action-font-size: var(--fs-base);
-    --primary-action-font-weight: 600;
+    --primary-action-font-size: var(--fs-sm);
+    --primary-action-font-weight: 500;
+    --primary-action-icon-size: 13px;
     --primary-action-bg: var(--accent);
     --primary-action-bg-hover: var(--accent-hover);
     --primary-action-text: var(--accent-fg);

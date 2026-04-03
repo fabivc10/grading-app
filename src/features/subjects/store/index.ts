@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { Asignatura, AsignaturaFormData, Semestre } from "../types";
 import * as svc from "../services/subjects.service";
+import { useInstitutionStore } from "../../institution/store";
+import { useEstudiantesStore } from "../../students/store";
+import { useEvaluacionesStore } from "../../evaluations/store";
+import { useHorariosStore } from "../../schedules/store";
 
 type AsignaturasState = {
     asignaturas: Asignatura[];
@@ -35,6 +39,13 @@ export const useAsignaturasStore = create<AsignaturasState>()((set) => ({
     deleteAsignatura: async (id) => {
         await svc.deleteAsignatura(id);
         set((s) => ({ asignaturas: s.asignaturas.filter((a) => a.id !== id) }));
+        const institutionId = useInstitutionStore.getState().currentId;
+        if (!institutionId) return;
+        await Promise.all([
+            useEstudiantesStore.getState().load(institutionId),
+            useEvaluacionesStore.getState().load(institutionId),
+            useHorariosStore.getState().load(institutionId),
+        ]);
     },
 
     decrementLeccion: async (id) => {

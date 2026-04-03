@@ -2,9 +2,12 @@
 .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--page-header-margin-bottom); }
 .headerLeft h2 { font-size: var(--page-title-size); font-weight: var(--page-title-weight); color: var(--tx-1); }
 .headerLeft p  { font-size: var(--page-subtitle-size); color: var(--page-subtitle-color); margin-top: var(--page-subtitle-margin-top); }
+.headerActions { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; }
+.headerUtilityActions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
 
 .addBtn {
     display: flex; align-items: center; gap: 0.4rem;
+    flex-shrink: 0;
     padding: var(--primary-action-padding-y) var(--primary-action-padding-x);
     background: var(--primary-action-bg); color: var(--primary-action-text);
     border: none; border-radius: var(--primary-action-radius);
@@ -13,7 +16,7 @@
 }
 .addBtn:hover  { background: var(--primary-action-bg-hover); }
 .addBtn:active { transform: scale(0.97); }
-.addBtn svg    { width: 15px; height: 15px; }
+.addBtn svg    { width: var(--primary-action-icon-size); height: var(--primary-action-icon-size); }
 
 /* ── Toolbar ── */
 .toolbar { display: flex; align-items: center; gap: var(--page-toolbar-gap); margin-bottom: var(--page-toolbar-margin-bottom); flex-wrap: wrap; }
@@ -77,6 +80,7 @@
     color: var(--danger); cursor: pointer; white-space: nowrap;
 }
 .clearAll:hover { filter: brightness(0.95); }
+.clearAll:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 
 /* ── Table ── */
 .tableWrap {
@@ -92,6 +96,18 @@ thead th {
     padding: 0.7rem 1rem; text-align: left;
     font-size: 0.7rem; font-weight: 600; color: var(--tx-3);
     text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
+}
+.thCheck,
+.tdCheck {
+    width: 44px;
+    text-align: center;
+    padding-left: 0.75rem;
+    padding-right: 0.5rem;
+}
+.thCheck input,
+.tdCheck input {
+    accent-color: var(--accent);
+    cursor: pointer;
 }
 
 tbody tr   { border-bottom: 1px solid var(--surface-2); transition: background 0.1s; }
@@ -223,3 +239,9 @@ tbody td   { padding: 0.7rem 1rem; color: var(--tx-1); vertical-align: middle; }
     transition: color 0.1s, border-color 0.1s; line-height: 1; margin-bottom: 0;
 }
 .removeTutorBtn:hover { color: var(--danger, #ef4444); border-color: var(--danger, #ef4444); }
+
+@media (max-width: 900px) {
+    .header { align-items: flex-start; flex-direction: column; gap: 0.75rem; }
+    .headerActions { width: 100%; justify-content: space-between; }
+    .headerUtilityActions { width: 100%; }
+}

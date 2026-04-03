@@ -34,15 +34,20 @@
 
 .clear {
     position: absolute;
-    right: 0.5rem;
+    right: 0.45rem;
     top: 50%;
     transform: translateY(-50%);
     background: none;
     border: none;
     color: var(--tx-3);
-    font-size: 0.95rem;
     cursor: pointer;
     line-height: 1;
-    padding: 0 0.2rem;
+    padding: 0.15rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
+.clear svg { width: 0.78rem; height: 0.78rem; }
 .clear:hover { color: var(--tx-1); }
