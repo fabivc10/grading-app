@@ -59,15 +59,15 @@
     --at-row-even: #161616;
     --at-row-odd:  #1e1e1e;
 
-    --at-p-bg:     #0d2e16;  --at-p-fg:  #5cbf74;
-    --at-i-bg:     #2e0d0d;  --at-i-fg:  #e87070;
-    --at-t-bg:     #2a1f00;  --at-t-fg:  #f9cc4a;
-    --at-j-bg:     #081b36;  --at-j-fg:  #5599ee;
+    --at-p-bg:     #14532d;  --at-p-fg:  #dcfce7;
+    --at-i-bg:     #7f1d1d;  --at-i-fg:  #fee2e2;
+    --at-t-bg:     #a16207;  --at-t-fg:  #fef9c3;
+    --at-j-bg:     #1d4ed8;  --at-j-fg:  #eff6ff;
 
-    --at-sum-p-bg: #0d2e16;  --at-sum-p-fg: #5cbf74;
-    --at-sum-i-bg: #2e0d0d;  --at-sum-i-fg: #e87070;
-    --at-sum-t-bg: #2a1f00;  --at-sum-t-fg: #f9cc4a;
-    --at-sum-j-bg: #081b36;  --at-sum-j-fg: #5599ee;
+    --at-sum-p-bg: #14532d;  --at-sum-p-fg: #dcfce7;
+    --at-sum-i-bg: #7f1d1d;  --at-sum-i-fg: #fee2e2;
+    --at-sum-t-bg: #a16207;  --at-sum-t-fg: #fef9c3;
+    --at-sum-j-bg: #1d4ed8;  --at-sum-j-fg: #eff6ff;
 
     --at-notice-bg: #1c1600;
     --at-notice-bd: #854d0e;
@@ -319,7 +319,8 @@
     font-size: 0.71rem;
     font-weight: 700;
     border-top: 2px solid var(--at-mon-bd) !important;
-    text-align: left;
+    text-align: center;
+    padding-left: 22px !important;
     padding-right: 22px !important;
     min-width: 70px;
 }
@@ -379,10 +380,10 @@
 
 /* ── Summary header cells ────────────────────────────────────────────────── */
 .thSum { padding: 0.25rem 0.35rem; font-size: 0.71rem; font-weight: 700; }
-.thSumP   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
-.thSumI   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
-.thSumT   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
-.thSumJ   { background: var(--surface-2) !important; color: var(--tx-2) !important; }
+.thSumP   { background: color-mix(in srgb, var(--at-sum-p-bg) 24%, var(--surface-2)) !important; color: var(--at-sum-p-fg) !important; }
+.thSumI   { background: color-mix(in srgb, var(--at-sum-i-bg) 24%, var(--surface-2)) !important; color: var(--at-sum-i-fg) !important; }
+.thSumT   { background: color-mix(in srgb, var(--at-sum-t-bg) 24%, var(--surface-2)) !important; color: var(--at-sum-t-fg) !important; }
+.thSumJ   { background: color-mix(in srgb, var(--at-sum-j-bg) 24%, var(--surface-2)) !important; color: var(--at-sum-j-fg) !important; }
 .thSumPct { background: var(--surface-2) !important; color: var(--tx-2) !important; }
 
 

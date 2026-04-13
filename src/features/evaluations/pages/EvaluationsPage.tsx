@@ -938,16 +938,14 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
         </Modal>
     );
 }
-function TemaGroupRow({ temaName, items, tipo: _tipo, allowStructureEdit = true, hideObservation = false, onEditPunto, onDeleteItem, onNotaChange, onNotaDescChange }: {
+function TemaGroupRow({ temaName, items, tipo: _tipo, allowStructureEdit = true, onEditPunto, onDeleteItem, onNotaChange }: {
     temaName: string;
     items: TemaItem[];
     tipo: EvalTipo;
     allowStructureEdit?: boolean;
-    hideObservation?: boolean;
     onEditPunto: (item: TemaItem) => void;
     onDeleteItem: (id: string) => void;
     onNotaChange: (id: string, raw: string) => void;
-    onNotaDescChange: (id: string, val: string) => void;
 }) {
     const [open, setOpen] = useState(true);
     const maxT  = items.reduce((s, i) => s + i.valor, 0);
@@ -975,15 +973,6 @@ function TemaGroupRow({ temaName, items, tipo: _tipo, allowStructureEdit = true,
                                 {item.descripcion && <span className={styles.puntoDesc}>{item.descripcion}</span>}
                             </div>
                             <div className={styles.puntoGrade}>
-                                {!hideObservation && (
-                                    <input
-                                        type="text"
-                                        className={styles.notaDescInput}
-                                        value={item.notaDescripcion}
-                                        placeholder="Observaci\u00f3n..."
-                                        onChange={(e) => onNotaDescChange(item.id, e.target.value)}
-                                    />
-                                )}
                                 <div className={styles.notaCell}>
                                     <input
                                         type="number"
@@ -1052,12 +1041,6 @@ function EvalEntryRow({ entry, category, onUpdate, onDelete }: {
         const nota = Math.min(item.valor, Math.max(0, Number(raw) || 0));
         if (nota !== item.nota) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, nota } : i) });
     };
-    const handleNotaDescChange = (itemId: string, val: string) => {
-        const item = entry.items.find((i) => i.id === itemId);
-        if (!item) return;
-        if (val !== item.notaDescripcion) onUpdate({ ...entry, items: entry.items.map((i) => i.id === itemId ? { ...i, notaDescripcion: val } : i) });
-    };
-
     return (
         <div className={styles.entryRow}>
             <div className={styles.entryHead} onClick={() => setOpen((v) => !v)}>
@@ -1121,11 +1104,9 @@ function EvalEntryRow({ entry, category, onUpdate, onDelete }: {
                                     items={items}
                                     tipo={entry.tipo}
                                     allowStructureEdit={allowStructureEdit}
-                                    hideObservation={false}
                                     onEditPunto={(item) => setIndicatorModal({ contentName: temaName, item, evalType: entry.tipo })}
                                     onDeleteItem={handleDeleteItem}
                                     onNotaChange={handleNotaChange}
-                                    onNotaDescChange={handleNotaDescChange}
                                 />
                             ))}
                         </>
@@ -1194,6 +1175,60 @@ function CategoryGroup({ label, catKey: _catKey, entries, weight, maxEntries, on
     );
 }
 
+function SemesterGroup({ label, period, score, scoreClassName, record, nivelConfig, onUpdate }: {
+    label: string;
+    period: "s1" | "s2";
+    score: number;
+    scoreClassName: string;
+    record: StudentEval;
+    nivelConfig: NivelConfig;
+    onUpdate: (id: string, patch: Partial<StudentEval>) => void;
+}) {
+    const [open, setOpen] = useState(true);
+
+    return (
+        <div className={styles.semesterGroup}>
+            <button type="button" className={styles.semesterGroupHead} onClick={() => setOpen((current) => !current)}>
+                <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
+                <div className={styles.semesterGroupTitleWrap}>
+                    <span className={styles.semesterGroupEyebrow}>Semestre</span>
+                    <span className={styles.semesterGroupTitle}>{label}</span>
+                </div>
+                <span className={`${styles.periodBadge} ${scoreClassName}`}>{score}%</span>
+            </button>
+            {open && (
+                <div className={styles.semesterGroupBody}>
+                    {ALL_CATS
+                        .filter((c) => c.key !== "proyecto" || nivelConfig.numProyectos > 0)
+                        .map((c) => {
+                            const maxMap: Record<EvalCategory, number | undefined> = {
+                                cotidiano: undefined,
+                                tareas:    nivelConfig.numTareas,
+                                prueba:    nivelConfig.numPruebas,
+                                proyecto:  nivelConfig.numProyectos,
+                            };
+                            const semesterEntries = record[c.key].filter((entry) => entry.semestre === period);
+                            return (
+                                <CategoryGroup
+                                    key={`${period}-${c.key}`}
+                                    label={c.label}
+                                    catKey={c.key}
+                                    entries={semesterEntries}
+                                    weight={nivelConfig[c.key]}
+                                    maxEntries={maxMap[c.key]}
+                                    onChange={(nextSemesterEntries) => {
+                                        const otherEntries = record[c.key].filter((entry) => entry.semestre !== period);
+                                        onUpdate(record.id, { [c.key]: [...otherEntries, ...nextSemesterEntries] });
+                                    }}
+                                />
+                            );
+                        })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // StudentPanel
 function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, onConductaChange }: {
     record: StudentEval; conductaPct: number; nivelConfig: NivelConfig;
@@ -1212,18 +1247,20 @@ function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, on
             <div className={styles.asigPanelHead} onClick={() => setOpen((v) => !v)}>
                 <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}><ChevronDownIcon /></span>
                 <span className={styles.asigPanelName}>{record.nombre}</span>
-                <span className={styles.periodBadges}>
-                    <span className={`${styles.periodBadge} ${sc(scoreS1)}`}>Semestre I: {scoreS1}%</span>
-                    <span className={`${styles.periodBadge} ${sc(scoreS2)}`}>Semestre II: {scoreS2}%</span>
-                </span>
-                <span className={`${styles.asigScore} ${sc(score)}`} title="Promedio general">P. General: {score}%</span>
-                <StatusBadge score={score} />
-                <ConductaChip pct={conductaPct} onChange={(pct) => onConductaChange(record.estudianteId ?? record.id, pct)} />
-                <Link to={`/app/asistencia?asig=${record.asignaturaId}`}
-                    className={`${styles.asistChip} ${sc(asistPct(record.asistencia))}`}
-                    onClick={(e) => e.stopPropagation()}>
-                    {asistPct(record.asistencia)}% asistencia
-                </Link>
+                <div className={styles.headerBadgeGroup}>
+                    <span className={styles.periodBadges}>
+                        <span className={`${styles.periodBadge} ${sc(scoreS1)}`}>Semestre I: {scoreS1}%</span>
+                        <span className={`${styles.periodBadge} ${sc(scoreS2)}`}>Semestre II: {scoreS2}%</span>
+                    </span>
+                    <span className={`${styles.asigScore} ${sc(score)}`} title="Promedio general">P. General: {score}%</span>
+                    <StatusBadge score={score} />
+                    <ConductaChip pct={conductaPct} onChange={(pct) => onConductaChange(record.estudianteId ?? record.id, pct)} />
+                    <Link to={`/app/asistencia?asig=${record.asignaturaId}`}
+                        className={`${styles.asistChip} ${sc(asistPct(record.asistencia))}`}
+                        onClick={(e) => e.stopPropagation()}>
+                        {asistPct(record.asistencia)}% asistencia
+                    </Link>
+                </div>
                 <div className={styles.rowActions}>
                     <Link to={`/app/estudiantes?q=${encodeURIComponent(record.nombre)}`}
                         className={styles.iconBtn}
@@ -1235,27 +1272,24 @@ function StudentPanel({ record, conductaPct, nivelConfig, onUpdate, onDelete, on
             </div>
             {open && (
                 <div className={styles.asigBody}>
-                    {ALL_CATS
-                        .filter((c) => c.key !== "proyecto" || nivelConfig.numProyectos > 0)
-                        .map((c) => {
-                            const maxMap: Record<EvalCategory, number | undefined> = {
-                                cotidiano: undefined,
-                                tareas:    nivelConfig.numTareas,
-                                prueba:    nivelConfig.numPruebas,
-                                proyecto:  nivelConfig.numProyectos,
-                            };
-                            return (
-                                <CategoryGroup
-                                    key={c.key}
-                                    label={c.label}
-                                    catKey={c.key}
-                                    entries={record[c.key]}
-                                    weight={nivelConfig[c.key]}
-                                    maxEntries={maxMap[c.key]}
-                                    onChange={(entries) => onUpdate(record.id, { [c.key]: entries })}
-                                />
-                            );
-                        })}
+                    <SemesterGroup
+                        label="Semestre I"
+                        period="s1"
+                        score={scoreS1}
+                        scoreClassName={sc(scoreS1)}
+                        record={record}
+                        nivelConfig={nivelConfig}
+                        onUpdate={onUpdate}
+                    />
+                    <SemesterGroup
+                        label="Semestre II"
+                        period="s2"
+                        score={scoreS2}
+                        scoreClassName={sc(scoreS2)}
+                        record={record}
+                        nivelConfig={nivelConfig}
+                        onUpdate={onUpdate}
+                    />
                 </div>
             )}
         </div>
