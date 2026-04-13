@@ -498,7 +498,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
 
     const addContent = () => {
         const newId = uid();
-        setContents((current) => [...current, { id: newId, nombre: getDefaultContentName(current.length), puntos: [] }]);
+        setContents((current) => [...current, { id: newId, nombre: "", puntos: [] }]);
         setExpandedId(newId);
     };
 
@@ -510,20 +510,13 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
     const setContentName = (contentId: string, value: string) =>
         setContents((current) => current.map((item) => item.id === contentId ? { ...item, nombre: value } : item));
 
-    const clearDefaultContentName = (contentId: string) =>
-        setContents((current) => current.map((item, index) => (
-            item.id === contentId && item.nombre === getDefaultContentName(index)
-                ? { ...item, nombre: "" }
-                : item
-        )));
-
     const addIndicator = (contentId: string) => {
         const scoreRange = getScaleByType(availableEvalScales, evalType);
         const remainingPoints = Math.max(0, maxAssignablePoints - totalPts);
         const nextValue = Math.min(scoreRange.max, remainingPoints);
         if (nextValue <= 0) return;
         setContents((current) => current.map((item) => item.id === contentId
-            ? { ...item, puntos: [...item.puntos, { id: uid(), nombre: getDefaultIndicatorName(item.puntos.length), valor: nextValue }] }
+            ? { ...item, puntos: [...item.puntos, { id: uid(), nombre: "", valor: nextValue }] }
             : item));
     };
 
@@ -560,23 +553,9 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
             };
         }));
 
-    const clearDefaultIndicatorName = (contentId: string, indicatorId: string) =>
-        setContents((current) => current.map((item) => {
-            if (item.id !== contentId) return item;
-            return {
-                ...item,
-                puntos: item.puntos.map((indicator, index) => (
-                    indicator.id === indicatorId && indicator.nombre === getDefaultIndicatorName(index)
-                        ? { ...indicator, nombre: "" }
-                        : indicator
-                )),
-            };
-        }));
-
     const hasIncompleteContent = contents.length > 0 && !contents.every((content) =>
-        content.nombre.trim() !== "" &&
         content.puntos.length > 0 &&
-        content.puntos.every((indicator) => indicator.nombre.trim() !== "" && indicator.valor > 0)
+        content.puntos.every((indicator) => indicator.valor > 0)
     );
 
     const isPruebaCategory = category === "prueba";
@@ -611,17 +590,18 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                 nota: assignedPoints,
                 notaDescripcion: "",
             }]
-            : contents.flatMap((content) =>
-                content.puntos.map((indicator) => ({
+            : contents.flatMap((content, contentIndex) => {
+                const contentName = content.nombre.trim() || getDefaultContentName(contentIndex);
+                return content.puntos.map((indicator, indicatorIndex) => ({
                     id: uid(),
-                    tema: content.nombre.trim(),
-                    nombre: indicator.nombre.trim(),
+                    tema: contentName,
+                    nombre: indicator.nombre.trim() || getDefaultIndicatorName(indicatorIndex),
                     descripcion: "",
                     valor: indicator.valor,
                     nota: indicator.valor,
                     notaDescripcion: "",
-                }))
-            );
+                }));
+            });
 
         onSave(targetIds, category, evalName.trim(), effectiveAssignedPoints, items, semester, evalType);
     };
@@ -666,7 +646,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                     <div className={styles.row3WithFull}>
                         {target === "asignatura" && (
                             <div className={styles.fullRow}>
-                                <FormField label="Asignatura" required>
+                                <FormField label="Niveles" required>
                                     <ChecklistDropdown
                                         placeholder="Selecciona asignaturas"
                                         summary={selectedAssignmentSummary}
@@ -700,7 +680,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                                     setSelectedStudentIds([]);
                                     setStudentAssignmentId("");
                                 }}>
-                                {availableAssignments.length > 0 && <option value="asignatura">Asignatura</option>}
+                                {availableAssignments.length > 0 && <option value="asignatura">Niveles</option>}
                                 {students.length > 0 && <option value="estudiante">Estudiante</option>}
                             </select>
                         </FormField>
@@ -730,7 +710,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                     <div className={styles.row3WithFull}>
                         {target === "asignatura" && (
                             <div className={styles.fullRow}>
-                                <FormField label="Asignatura" required>
+                                <FormField label="Niveles" required>
                                     <ChecklistDropdown
                                         placeholder="Selecciona asignaturas"
                                         summary={selectedAssignmentSummary}
@@ -764,7 +744,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                                     setSelectedStudentIds([]);
                                     setStudentAssignmentId("");
                                 }}>
-                                {availableAssignments.length > 0 && <option value="asignatura">Asignatura</option>}
+                                {availableAssignments.length > 0 && <option value="asignatura">Niveles</option>}
                                 {students.length > 0 && <option value="estudiante">Estudiante</option>}
                             </select>
                         </FormField>
@@ -855,7 +835,7 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                                                 </div>
                                                 {!isOpen && (
                                                     <span className={styles.temaBuilderCollapsedName}>
-                                                        {content.nombre || <em style={{ color: "var(--tx-3)" }}>{getDefaultContentName(index)}</em>}
+                                                        {content.nombre.trim() || <em style={{ color: "var(--tx-3)" }}>{getDefaultContentName(index)}</em>}
                                                     </span>
                                                 )}
                                             </div>
@@ -870,13 +850,9 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                                             <div className={styles.temaBuilderInputRow}>
                                                 <input
                                                     className={styles.temaBuilderInput}
-                                                    placeholder="Nombre del contenido"
-                                                    value={content.nombre || getDefaultContentName(index)}
+                                                    placeholder={getDefaultContentName(index)}
+                                                    value={content.nombre}
                                                     onChange={(e) => { e.stopPropagation(); setContentName(content.id, e.target.value); }}
-                                                    onFocus={(e) => {
-                                                        e.stopPropagation();
-                                                        clearDefaultContentName(content.id);
-                                                    }}
                                                     onClick={(e) => e.stopPropagation()}
                                                     autoFocus
                                                 />
@@ -896,13 +872,12 @@ function AddEvalModal({ records, asignaturas: assignments, nivelConfigs, onSave,
                                                     Este contenido aun no tiene indicadores.
                                                 </div>
                                             )}
-                                            {content.puntos.map((indicator) => (
+                                            {content.puntos.map((indicator, indicatorIndex) => (
                                                 <div key={indicator.id} className={styles.puntoBuilderRow}>
                                                     <input
                                                         className={styles.puntoBuilderName}
-                                                        placeholder="Indicador a evaluar"
+                                                        placeholder={getDefaultIndicatorName(indicatorIndex)}
                                                         value={indicator.nombre}
-                                                        onFocus={() => clearDefaultIndicatorName(content.id, indicator.id)}
                                                         onChange={(e) => updateIndicator(content.id, indicator.id, { nombre: e.target.value })}
                                                     />
                                                     <input
