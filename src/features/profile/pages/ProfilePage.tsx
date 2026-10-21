@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { isTauri } from "@tauri-apps/api/core";
 import { useAuthStore } from "../../auth/store";
 import { changePassword, updateProfile } from "../../auth/services/auth.service";
 import styles from "./ProfilePage.module.css";
@@ -137,76 +138,80 @@ export function ProfilePage() {
                     </div>
                 </section>
 
-                <section className={styles.card}>
-                    <div className={styles.cardHeader}>
-                        <div>
-                            <p className={styles.eyebrow}>Seguridad</p>
-                            <h3 className={styles.cardTitle}>Cambiar contraseña</h3>
-                        </div>
-                    </div>
+                {isTauri() && (
+                    <>
+                        <section className={styles.card}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <p className={styles.eyebrow}>Seguridad</p>
+                                    <h3 className={styles.cardTitle}>Cambiar contraseña</h3>
+                                </div>
+                            </div>
 
-                    <div className={styles.passwordGrid}>
-                        <label className={styles.field}>
-                            <span>Contraseña actual</span>
-                            <input
-                                type="password"
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                            />
-                        </label>
-                        <label className={styles.field}>
-                            <span>Nueva contraseña</span>
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                            />
-                        </label>
-                        <label className={styles.field}>
-                            <span>Confirmar nueva contraseña</span>
-                            <input
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                            />
-                        </label>
-                    </div>
+                            <div className={styles.passwordGrid}>
+                                <label className={styles.field}>
+                                    <span>Contraseña actual</span>
+                                    <input
+                                        type="password"
+                                        value={currentPassword}
+                                        onChange={(e) => setCurrentPassword(e.target.value)}
+                                    />
+                                </label>
+                                <label className={styles.field}>
+                                    <span>Nueva contraseña</span>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                    />
+                                </label>
+                                <label className={styles.field}>
+                                    <span>Confirmar nueva contraseña</span>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                    />
+                                </label>
+                            </div>
 
-                    <div className={styles.actions}>
-                        <button type="button" className={styles.primaryBtn} onClick={savePassword}>
-                            Actualizar contraseña
-                        </button>
-                        {passwordMsg && <span className={styles.message}>{passwordMsg}</span>}
-                    </div>
-                </section>
+                            <div className={styles.actions}>
+                                <button type="button" className={styles.primaryBtn} onClick={savePassword}>
+                                    Actualizar contraseña
+                                </button>
+                                {passwordMsg && <span className={styles.message}>{passwordMsg}</span>}
+                            </div>
+                        </section>
 
-                <section className={`${styles.card} ${styles.fullWidth}`}>
-                    <div className={styles.cardHeader}>
-                        <div>
-                            <p className={styles.eyebrow}>Pagos</p>
-                            <h3 className={styles.cardTitle}>Membresía, planes y facturación</h3>
-                            <p className={styles.cardHint}>
-                                Esta información ahora vive en una ventana aparte para que quede más clara.
-                            </p>
-                        </div>
-                    </div>
+                        <section className={`${styles.card} ${styles.fullWidth}`}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <p className={styles.eyebrow}>Pagos</p>
+                                    <h3 className={styles.cardTitle}>Membresía, planes y facturación</h3>
+                                    <p className={styles.cardHint}>
+                                        Esta información ahora vive en una ventana aparte para que quede más clara.
+                                    </p>
+                                </div>
+                            </div>
 
-                    <div className={styles.billingCta}>
-                        <div>
-                            <strong>Administra tu suscripción en una vista dedicada</strong>
-                            <p>
-                                Cambia de plan, revisa tu membresía y consulta el historial de pagos desde la sección de pagos.
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            className={styles.secondaryBtn}
-                            onClick={() => navigate("/app/pagos")}
-                        >
-                            Ir a pagos
-                        </button>
-                    </div>
-                </section>
+                            <div className={styles.billingCta}>
+                                <div>
+                                    <strong>Administra tu suscripción en una vista dedicada</strong>
+                                    <p>
+                                        Cambia de plan, revisa tu membresía y consulta el historial de pagos desde la sección de pagos.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={styles.secondaryBtn}
+                                    onClick={() => navigate("/app/pagos")}
+                                >
+                                    Ir a pagos
+                                </button>
+                            </div>
+                        </section>
+                    </>
+                )}
             </div>
         </div>
     );

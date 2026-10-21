@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../auth/store";
 import { useAccessStore } from "../store";
@@ -28,6 +29,7 @@ export function AccessProtectedRoute() {
     const reset = useAccessStore((s) => s.reset);
 
     useEffect(() => {
+        if (!isTauri()) return;
         if (!user) {
             reset();
             return;
@@ -36,6 +38,10 @@ export function AccessProtectedRoute() {
     }, [user, checkAccess, reset]);
 
     if (!user) return null;
+
+    if (!isTauri()) {
+        return location.pathname === PAYMENTS_ROUTE ? <Navigate to="/app" replace /> : <Outlet />;
+    }
 
     const currentPath = `${location.pathname}${location.search}${location.hash}`;
     const isPaymentsRoute = location.pathname === PAYMENTS_ROUTE;

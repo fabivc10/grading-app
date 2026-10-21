@@ -1,6 +1,8 @@
 import { create } from "zustand";
+import { isTauri } from "@tauri-apps/api/core";
 import * as authSessionRepo from "../repositories/auth-session.repository";
 import * as authUserService from "../services/shared/auth-user.service";
+import * as localAuthRepo from "../repositories/auth-user.repository";
 import type { AuthProvider, AuthStatus, User } from "../types";
 
 type AuthState = {
@@ -13,6 +15,8 @@ type AuthState = {
     clearAuth: () => void;
     hydrateFromLocalSession: () => Promise<void>;
 };
+
+const WEB_LOCAL_USER_EMAIL = "admin@grading.app";
 
 const anonymousState = {
     user: null,
@@ -40,7 +44,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     hydrateFromLocalSession: async () => {
         try {
-            const userId = await authSessionRepo.findActiveSessionUserId();
+            // The web build has no login: it always runs as the local default user.
+            const userId = isTauri()
+                ? await authSessionRepo.findActiveSessionUserId()
+                : (await localAuthRepo.findUserByEmail(WEB_LOCAL_USER_EMAIL))?.id;
             if (!userId) {
                 set({ ...anonymousState, hydrated: true });
                 return;

@@ -1,4 +1,6 @@
-import { createBrowserRouter } from "react-router-dom";
+import type { ReactNode } from "react";
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import { isTauri } from "@tauri-apps/api/core";
 import { MainLayout } from "../layouts/MainLayout";
 import { ProtectedRoute } from "../../features/auth/components/ProtectedRoute";
 import { LandingPage } from "../../features/auth/pages/LandingPage";
@@ -17,10 +19,15 @@ import { ProfilePage } from "../../features/profile/pages/ProfilePage";
 import { PaymentsPage } from "../../features/payments/pages/PaymentsPage";
 import { AccessProtectedRoute } from "../../features/access/components/AccessProtectedRoute";
 
+// Auth pages exist only in the desktop app; the web build goes straight into the app.
+function desktopOnly(element: ReactNode) {
+    return isTauri() ? element : <Navigate to="/app" replace />;
+}
+
 export const router = createBrowserRouter([
-    { path: "/",      element: <LandingPage /> },
-    { path: "/login", element: <LoginPage /> },
-    { path: "/register", element: <RegisterPage /> },
+    { path: "/",      element: desktopOnly(<LandingPage />) },
+    { path: "/login", element: desktopOnly(<LoginPage />) },
+    { path: "/register", element: desktopOnly(<RegisterPage />) },
     { path: "/auth/confirm", element: <AuthConfirmPage /> },
     { path: "/oauth/callback", element: <OAuthBridgePage /> },
     {

@@ -1,45 +1,13 @@
 import initSqlJs, { type Database as SqlJsDatabase, type SqlValue } from "sql.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
-// Browser replacement for @tauri-apps/plugin-sql: SQLite compiled to WASM,
-// persisted as a single blob in IndexedDB. Exposes the same execute/select API.
-
-const IDB_NAME = "grading-app";
-const IDB_STORE = "sqlite";
-const IDB_KEY = "grading.db";
-const SAVE_DELAY_MS = 300;
+// Browser replacement for @tauri-apps/plugin-sql: SQLite compiled to WASM.
+// The web build is a public demo, so the database lives only in memory —
+// every page load starts from the seeded demo data and nothing is persisted.
 
 export interface QueryResult {
     rowsAffected: number;
     lastInsertId?: number;
-}
-
-function openIdb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(IDB_NAME, 1);
-        req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function loadBlob(): Promise<Uint8Array | null> {
-    const idb = await openIdb();
-    return new Promise((resolve, reject) => {
-        const req = idb.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
-        req.onsuccess = () => resolve((req.result as Uint8Array | undefined) ?? null);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function saveBlob(data: Uint8Array): Promise<void> {
-    const idb = await openIdb();
-    return new Promise((resolve, reject) => {
-        const tx = idb.transaction(IDB_STORE, "readwrite");
-        tx.objectStore(IDB_STORE).put(data, IDB_KEY);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
 }
 
 function toBindValues(values: unknown[]): SqlValue[] {
@@ -52,19 +20,11 @@ function toBindValues(values: unknown[]): SqlValue[] {
 }
 
 export class WebDatabase {
-    private saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-    private constructor(private readonly db: SqlJsDatabase) {
-        window.addEventListener("pagehide", () => this.flushPending());
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "hidden") this.flushPending();
-        });
-    }
+    private constructor(private readonly db: SqlJsDatabase) {}
 
     static async load(): Promise<WebDatabase> {
         const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
-        const existing = await loadBlob();
-        return new WebDatabase(existing ? new SQL.Database(existing) : new SQL.Database());
+        return new WebDatabase(new SQL.Database());
     }
 
     async execute(query: string, bindValues: unknown[] = []): Promise<QueryResult> {
@@ -75,7 +35,6 @@ export class WebDatabase {
         }
         const rowsAffected = this.db.getRowsModified();
         const idRow = this.db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0];
-        this.scheduleSave();
         return { rowsAffected, lastInsertId: typeof idRow === "number" ? idRow : undefined };
     }
 
@@ -89,25 +48,5 @@ export class WebDatabase {
         } finally {
             stmt.free();
         }
-    }
-
-    private scheduleSave() {
-        if (this.saveTimer) clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => this.flush(), SAVE_DELAY_MS);
-    }
-
-    private flushPending() {
-        if (this.saveTimer) this.flush();
-    }
-
-    private flush() {
-        if (this.saveTimer) {
-            clearTimeout(this.saveTimer);
-            this.saveTimer = null;
-        }
-        const data = this.db.export();
-        // export() resets connection pragmas in sql.js
-        this.db.exec("PRAGMA foreign_keys = ON;");
-        saveBlob(data).catch((err) => console.error("[web-db] No se pudo guardar", err));
     }
 }

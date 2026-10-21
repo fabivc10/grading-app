@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { isTauri } from "@tauri-apps/api/core";
 import { logout } from "../../features/auth/services/auth.service";
 import { useAuthStore } from "../../features/auth/store";
 import { useThemeStore } from "../../features/theme/store";
@@ -151,10 +152,14 @@ export function Topbar() {
                         <div className={styles.profilePanel}>
                             <button className={styles.profileItem} onClick={() => { navigate("/app/perfil"); setProfileOpen(false); }}><UserIcon /> Mi perfil</button>
                             <button className={styles.profileItem} onClick={() => { navigate("/app/configuracion"); setProfileOpen(false); }}><SettingsIcon /> Configuración</button>
-                            <div className={styles.profileDivider} />
-                            <button className={`${styles.profileItem} ${styles.profileItemDanger}`} onClick={handleLogout}>
-                                <LogOutIcon /> Cerrar sesión
-                            </button>
+                            {isTauri() && (
+                                <>
+                                    <div className={styles.profileDivider} />
+                                    <button className={`${styles.profileItem} ${styles.profileItemDanger}`} onClick={handleLogout}>
+                                        <LogOutIcon /> Cerrar sesión
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
