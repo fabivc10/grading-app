@@ -1,8 +1,19 @@
-import Database from "@tauri-apps/plugin-sql";
+import TauriDatabase from "@tauri-apps/plugin-sql";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { hashPassword } from "./crypto";
 
 const DB_PATH = "sqlite:grading-data/grading.db";
+
+type Database = Pick<TauriDatabase, "execute" | "select">;
+
+async function loadDatabase(): Promise<Database> {
+    if (isTauri()) {
+        await invoke("prepare_local_db_storage");
+        return TauriDatabase.load(DB_PATH);
+    }
+    const { WebDatabase } = await import("./web-db");
+    return WebDatabase.load();
+}
 
 // ─── Singleton connection ─────────────────────────────────────────────────────
 let _db: Database | null = null;
@@ -13,10 +24,7 @@ export async function getDb(): Promise<Database> {
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
-        if (isTauri()) {
-            await invoke("prepare_local_db_storage");
-        }
-        const db = await Database.load(DB_PATH);
+        const db = await loadDatabase();
         await runMigrations(db);
         _db = db;
         return db;

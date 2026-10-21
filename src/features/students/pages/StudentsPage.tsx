@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, FormEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useSearchParams } from "react-router-dom";
 import { useEstudiantesStore } from "../store";
 import { useAsignaturasStore } from "../../subjects/store";
@@ -118,6 +118,10 @@ function formatUnknownError(error: unknown): string {
 }
 
 async function parseExcelFile(file: File): Promise<ImportedStudentRow[]> {
+    if (!isTauri()) {
+        throw new Error("La importación desde Excel solo está disponible en la app de escritorio.");
+    }
+
     console.log("[students/import] Leyendo archivo", {
         name: file.name,
         size: file.size,
